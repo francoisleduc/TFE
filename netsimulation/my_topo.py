@@ -5,8 +5,8 @@ from mininet.net import Mininet
 from mininet.node import Node
 from mininet.log import setLogLevel, info
 from mininet.cli import CLI
+import os
 
-print("Hello world")
 class LinuxRouter( Node ):
     "A Node with IP forwarding enabled."
     def config( self, **params ):
@@ -24,24 +24,16 @@ class NetworkTopo( Topo ):
     def build( self, **_opts ):
 
         defaultIP = None  # IP address for r0-eth1
-        r0 = self.addNode('r0', cls=LinuxRouter, ip=None)
-        r1 = self.addNode('r1', cls=LinuxRouter, ip=None)
 
-        self.addLink(r0, r1, params1={'ip': '10.0.0.2/24'},
-                      params2={ 'ip' : '10.0.0.3/24' })  
-
-        h1 = self.addHost('h1', ip='10.0.0.100/24',
-                          defaultRoute='via 10.0.0.1')
-        h2 = self.addHost('h2', ip='192.168.0.100/24',
-                          defaultRoute='via 192.168.0.1')
-        
-
-
-        
-        self.addLink(h1, r0 , params2={ 'ip' : '10.0.0.1/24' }, params1={ 'ip' : '10.0.0.100/24' })
-        
-        
-        self.addLink(h2, r1, params2={ 'ip' : '192.168.0.1/24' }, params1={ 'ip' : '192.168.0.100/24' })
+    
+        h1 = self.addHost('h1', ip='10.0.0.1/24')
+        h2 = self.addHost('h2', ip='10.0.0.2/24')
+        h3 = self.addHost('h3', ip='10.0.0.3/24')
+         
+        s1 = self.addSwitch('s1')
+        self.addLink(s1, h1)
+        self.addLink(s1, h2)
+        self.addLink(s1, h3)
 
        
 
@@ -53,19 +45,29 @@ def run():
     net.start()
 
 
-    net["r1"].cmd("ip route add 10.0.0.100 via 10.0.0.2 dev r1-eth0")
-    net["r1"].cmd("ip route add 10.0.0.2 via 10.0.0.2 dev r1-eth0")
-    net["r1"].cmd("ip route add 192.168.0.100 via 192.168.0.100 dev r1-eth1")
+    #net["r1"].cmd("ip route add 10.0.0.100 via 10.0.0.2 dev r1-eth0")
+    #net["r1"].cmd("ip route add 10.0.0.2 via 10.0.0.2 dev r1-eth0")
+    #net["r1"].cmd("ip route add 192.168.0.100 via 192.168.0.100 dev r1-eth1")
 
 
-    net["r0"].cmd("ip route add 192.168.0.100 via 10.0.0.3 dev r0-eth0")
-    net["r0"].cmd("ip route add 10.0.0.3 via 10.0.0.3 dev r0-eth0")
-    net["r0"].cmd("ip route add 10.0.0.100 via 10.0.0.100 dev r0-eth1")
+    #net["r0"].cmd("ip route add 192.168.0.100 via 10.0.0.3 dev r0-eth0")
+    #net["r0"].cmd("ip route add 10.0.0.3 via 10.0.0.3 dev r0-eth0")
+    #net["r0"].cmd("ip route add 10.0.0.100 via 10.0.0.100 dev r0-eth1")
     
 
     #net["r2"].cmd("ip route add 10.0.0.100 via 10.0.1.2 dev r2-eth0")
+    net.pingAll()
+    net["h1"].cmd('python -m SimpleHTTPServer 999 &')
+    print("Launching web server on h1 (10.0.0.1:999) ... ")
+    net["h2"].cmd("wget 10.0.0.1:999 -O data")
+    print("GET request sent from h2 to h1")
 
 
+    net["h3"].cmd('python lambda_server.py &')
+    print("Launching UDP Lambda Server on h3 (10.0.0.3:10021)")
+
+    net["h2"].cmd('python client.py &')
+    print("H2 Sending UDP packets to lambda server to test it out")
     CLI( net )
     net.stop()
 
@@ -73,6 +75,5 @@ def run():
 if __name__ == '__main__':
     setLogLevel( 'info' )
     run()
-
 
 

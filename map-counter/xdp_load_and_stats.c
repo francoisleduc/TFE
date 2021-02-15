@@ -9,7 +9,6 @@
 
 #include <locale.h>
 #include <unistd.h>
-#include <time.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -44,7 +43,6 @@ int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
 	struct bpf_map *map;
 	int map_fd = -1;
 
-	/* Lesson#3: bpf_object to bpf_map */
 	map = bpf_object__find_map_by_name(bpf_obj, mapname);
         if (!map) {
 		fprintf(stderr, "ERR: cannot find map by name: %s\n", mapname);
@@ -74,7 +72,6 @@ static void stats_print(struct stats_record *stats_rec)
 
 	stats_print_header(); /* Print stats "header" */
 
-	/* Print for each XDP actions stats */
 	
 	char *fmt = "%-12s %'11lld pkts"
 		" %'11lld bytes "
@@ -93,7 +90,7 @@ static void stats_print(struct stats_record *stats_rec)
 static bool stats_collect(int map_fd, __u32 map_type,
 			  struct stats_record *stats_rec)
 {
-	/* Collect all XDP actions stats  */
+
 	__u32 key = 0;
 	struct datarec *rec = &stats_rec->stats[key];
 	switch (map_type) {
@@ -132,17 +129,18 @@ static void stats_poll(int map_fd, __u32 map_type, int interval)
 
 		if(rec->rx_packets > 20 && flag_pkts == false)
 		{
-			printf("Threshold reached for number of packets: lambda triggering \n");
+			printf("Threshold reached for number of packets: should trigger a remote lambda function \n");
 			flag_pkts = true;
 		}
 
-		if(rec->rx_bytes > 2000 && flag_bytes == false)
+		if(rec->rx_bytes > 5000 && flag_bytes == false)
 		{
-			printf("Threshold reached for number of bytes: lambda triggering \n");
+			printf("Threshold reached for number of bytes: should trigger a remote lambda function \n");
 			flag_bytes = true;
 		}
 
-		sleep(interval);
+		sleep(interval); // so that user space does not poll constantly but every 2seconds for example
+
 	}
 }
 
