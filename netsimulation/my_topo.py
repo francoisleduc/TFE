@@ -63,11 +63,11 @@ def run():
     print("GET request sent from h2 to h1")
 
 
-    net["h3"].cmd('python lambda_server.py &')
-    print("Launching UDP Lambda Server on h3 (10.0.0.3:10021)")
+    #net["h3"].cmd('python lambda_server.py &')
+    #print("Launching UDP Lambda Server on h3 (10.0.0.3:10021)")
 
-    net["h2"].cmd('python client.py &')
-    print("H2 Sending UDP packets to lambda server to test it out")
+    #net["h2"].cmd('python client.py &')
+    #print("H2 Sending UDP packets to lambda server to test it out")
     CLI( net )
     net.stop()
 
