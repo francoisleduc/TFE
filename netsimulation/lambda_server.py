@@ -3,16 +3,20 @@ import socket
 import threading
 import time
 
-# Dictionnary of lambda functions ? Number(key) -> address function call 
-Dict = {}
-Dict[1] = lambda_f1
-
 
 def lambda_f1():
 	time.sleep(5)
 	print("Lambda function number 1")
 	# Do your thing here 
 	time.sleep(1)
+
+
+
+# Dictionnary of lambda functions ? Number(key) -> address function call 
+Dict = {}
+Dict[1] = lambda_f1
+
+
 
 
 

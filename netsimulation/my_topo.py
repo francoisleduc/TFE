@@ -26,9 +26,9 @@ class NetworkTopo( Topo ):
         defaultIP = None  # IP address for r0-eth1
 
     
-        h1 = self.addHost('h1', ip='10.0.0.1/24')
-        h2 = self.addHost('h2', ip='10.0.0.2/24')
-        h3 = self.addHost('h3', ip='10.0.0.3/24')
+        h1 = self.addHost('h1', ip='10.0.0.1/24', mac='00:00:00:00:00:01')
+        h2 = self.addHost('h2', ip='10.0.0.2/24', mac='00:00:00:00:00:02')
+        h3 = self.addHost('h3', ip='10.0.0.3/24', mac='00:00:00:00:00:03')
          
         s1 = self.addSwitch('s1')
         self.addLink(s1, h1)
@@ -44,30 +44,15 @@ def run():
                    waitConnected=True )  # controller is used by s1-s3
     net.start()
 
-
-    #net["r1"].cmd("ip route add 10.0.0.100 via 10.0.0.2 dev r1-eth0")
-    #net["r1"].cmd("ip route add 10.0.0.2 via 10.0.0.2 dev r1-eth0")
-    #net["r1"].cmd("ip route add 192.168.0.100 via 192.168.0.100 dev r1-eth1")
-
-
-    #net["r0"].cmd("ip route add 192.168.0.100 via 10.0.0.3 dev r0-eth0")
-    #net["r0"].cmd("ip route add 10.0.0.3 via 10.0.0.3 dev r0-eth0")
-    #net["r0"].cmd("ip route add 10.0.0.100 via 10.0.0.100 dev r0-eth1")
+    net.pingAll()
     
 
-    #net["r2"].cmd("ip route add 10.0.0.100 via 10.0.1.2 dev r2-eth0")
-    net.pingAll()
     net["h1"].cmd('python -m SimpleHTTPServer 999 &')
     print("Launching web server on h1 (10.0.0.1:999) ... ")
-    net["h2"].cmd("wget 10.0.0.1:999 -O data")
-    print("GET request sent from h2 to h1")
+    #net["h2"].cmd("wget 10.0.0.1:999 -O data")
+    print("Use $> h2 wget 10.0.0.1:999 -O data")
 
 
-    #net["h3"].cmd('python lambda_server.py &')
-    #print("Launching UDP Lambda Server on h3 (10.0.0.3:10021)")
-
-    #net["h2"].cmd('python client.py &')
-    #print("H2 Sending UDP packets to lambda server to test it out")
     CLI( net )
     net.stop()
 
