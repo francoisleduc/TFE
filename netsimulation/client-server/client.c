@@ -44,6 +44,7 @@ struct spacket* create_dummy_packet_struct(struct spacket* p)
     strcpy(p->devname, dv);
     
     p->port[0] = 0x4; // 4th port of switch 
+
     p->nbevents[0] = 0x2;
 
     

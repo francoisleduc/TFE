@@ -1,5 +1,6 @@
 #include "common.h"
 #include <uuid/uuid.h>
+#include <time.h>
 
 int bytes_to_single_int(unsigned char* bytes)
 {
