@@ -4,8 +4,8 @@ LD=gcc
 AR=ar
 
 # FLAGS #
-CFLAGS=-Wall -Wmissing-prototypes
-LDFLAGS=
+CFLAGS=-Wall -Wmissing-prototypes -luuid
+LDFLAGS=-luuid
 
 # CONFIGURATION FILE #
 EXEC=fake_switch

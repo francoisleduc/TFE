@@ -64,11 +64,14 @@ int main(int argc, char **argv) {
     if(!p)
         return -1;
     
-    p = create_dummy(p);
+    p = create_dummy_packet_struct(p);
     if(!p)
         log_warn("Could not create proper packet");
     printf("----------------------\n");
-    create_packet(buf, p);
+    create_packet_buf(buf, p);
+    printf("\n\n\n");
+    //print_byte_array(buf, BUFSIZE); 
+
     log_info("Sending: ");
     printf("\n\n");
 

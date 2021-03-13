@@ -15,9 +15,11 @@
 #define PORT_S 1
 #define NBEVENTS_S 1
 
-#define DESCRI_S 100
-#define EVENTID_S 4
 
+#define EVENTID_S 4
+#define DLENGTH_S 4
+#define UID_S 16
+#define ACK_S 1
 
 struct spacket{
     unsigned char version[VERSION_S];
@@ -25,8 +27,17 @@ struct spacket{
     char devname[DEVNAME_S];
     unsigned char port[PORT_S];
     unsigned char nbevents[NBEVENTS_S];
-    LinkedList* eventids;
     LinkedList* eventdescri;
+};
+
+
+struct pdescription{
+    unsigned char len[DLENGTH_S]; // total description struct length in byte 
+    unsigned char eventid[EVENTID_S];
+    unsigned char ack[ACK_S];
+    unsigned char uid[UID_S];
+    char* textd;
+    int textlen;
 };
 
 
@@ -34,5 +45,7 @@ void print_byte_array(unsigned char* buf, int x);
 void int_to_bytes(unsigned char* bytes, unsigned long n);
 void print_packet(struct spacket* p);
 void print_ip_int(unsigned char* ip);
-
+int get_description_header_size(void);
+void print_description_struct(struct pdescription *d);
+int bytes_to_single_int(unsigned char* bytes);
 #endif

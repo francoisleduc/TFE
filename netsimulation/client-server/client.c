@@ -7,14 +7,33 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <ctype.h>
-#include "common.h"
 #include "client.h"
-#include "log.h"
+#include <ctype.h>
+#include <uuid/uuid.h>
 
-struct spacket* create_dummy(struct spacket* p)
+
+struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* uid, char* desc, unsigned char* ack, unsigned char *id)
 {
-	p->eventids = newLinkedList();
+    unsigned char len1[DLENGTH_S];
+    int_to_bytes(len1, length);
+
+    if(!d)
+        return NULL;
+
+    memcpy(d->len, len1, DLENGTH_S);
+    memcpy(d->ack, ack, ACK_S);
+    memcpy(d->uid,  uid, UID_S);
+    memcpy(d->eventid, id, EVENTID_S);
+    d->textd = desc;
+    d->textlen = strlen(desc);
+    return d;
+}
+
+
+
+
+struct spacket* create_dummy_packet_struct(struct spacket* p)
+{
     p->eventdescri = newLinkedList();
 
     p->version[0] = 0x1;
@@ -34,26 +53,36 @@ struct spacket* create_dummy(struct spacket* p)
     unsigned char id2[EVENTID_S];
     int_to_bytes(id2, 8);
 
-    insertInLinkedList(p->eventids, id1);
-    insertInLinkedList(p->eventids, id2);
-
-
     char *descr1 = "number of connection for destination port 8080 on time interval of 10seconds\n";
     char *descr2 = "number of bytes received on interface 2 over last 20 seconds\n";
-    if(strlen(descr1) >= DESCRI_S|| strlen(descr2) >= DESCRI_S)
-    {
-        log_error("Event descriptions don't respect size constraints", __func__, __LINE__);
-        return NULL; // should not exit so abruptly 
-    }
-    
-    insertInLinkedList(p->eventdescri, descr1);
-    insertInLinkedList(p->eventdescri, descr2);
 
+    unsigned char uuid1[16]; // here uuid_t is a typdef for char[16]
+    unsigned char uuid2[16];
+    uuid_generate_time(uuid1);
+    uuid_generate_time(uuid2);
+
+    unsigned char ackevent1[ACK_S] = {0x1}; // true 
+    unsigned char ackevent2[ACK_S] = {0x0}; // false
+
+    struct pdescription *d1 = malloc(sizeof(struct pdescription));
+    struct pdescription *d2 = malloc(sizeof(struct pdescription));
+    if(!d1 || !d2)
+        log_fatal("Could not allocate memory dummy packet", __FILE__, __func__, __LINE__);
+
+    int length1 = get_description_header_size() + strlen(descr1);
+    int length2 = get_description_header_size() + strlen(descr2);
+
+    d1 = create_description_struct(d1, length1, uuid1, descr1, ackevent1, id1);
+    d2 = create_description_struct(d2, length2, uuid2, descr2, ackevent2, id2);
+
+    insertInLinkedList(p->eventdescri, d1);
+    insertInLinkedList(p->eventdescri, d2);
+    
     print_packet(p);
     return p;
 }
 
-void create_packet(char* buf, struct spacket* p) {
+void create_packet_buf(char* buf, struct spacket* p) {
 
     // memcpy(destination, source, length)
     if(!p)
@@ -65,35 +94,32 @@ void create_packet(char* buf, struct spacket* p) {
     memcpy(buf+VERSION_S+SRCIP_S+DEVNAME_S+PORT_S,  p->nbevents, NBEVENTS_S); //26
 
     
-    LLNode* headevents = p->eventids->head;
     LLNode* headdescri = p->eventdescri->head;
 
-    LLNode* current = p->eventids->head;
 
     int index = VERSION_S+SRCIP_S+DEVNAME_S+PORT_S+NBEVENTS_S; // 27
-    for(int i = 0; i < sizeOfLinkedList(p->eventids); i++)
-    {
-        if(!current)
-            log_error("Could not read event ids from buffer", __func__, __LINE__);
-        memcpy(buf+index, current->value, EVENTID_S);
-        index = index + EVENTID_S;
-        current = current->next;
-    }
 
-    current = p->eventdescri->head;
+    LLNode *current = p->eventdescri->head;
     for(int i = 0; i < sizeOfLinkedList(p->eventdescri); i++)
     {
         if(!current)
             log_error("Could not read event description from buffer", __func__, __LINE__);
-        memcpy(buf+index, current->value, DESCRI_S);
-        index = index + DESCRI_S;
+
+        struct pdescription *cpd = (struct pdescription*)current->value;
+        memcpy(buf+index, cpd->len, DLENGTH_S);
+        index = index + DLENGTH_S;
+        memcpy(buf+index, cpd->eventid, EVENTID_S);
+        index = index + EVENTID_S;
+        memcpy(buf+index, cpd->ack, ACK_S);
+        index = index + ACK_S;
+        memcpy(buf+index, cpd->uid, UID_S);
+        index = index + UID_S;
+        memcpy(buf+index, cpd->textd, cpd->textlen);
+        index = index + cpd->textlen;
         current = current->next;
     }
-
-    p->eventids->head = headevents;
     p->eventdescri->head = headdescri;
 
-    
 }
 
 

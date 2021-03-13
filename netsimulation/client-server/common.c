@@ -1,5 +1,16 @@
 #include "common.h"
+#include <uuid/uuid.h>
 
+int bytes_to_single_int(unsigned char* bytes)
+{
+    int a = (int)(unsigned char)(bytes[0]) << 24 | (unsigned char)(bytes[1]) << 16 | (unsigned char)(bytes[2]) << 8 | (unsigned char)(bytes[3]);
+    return a;
+}
+
+int get_description_header_size(void)
+{
+    return EVENTID_S + DLENGTH_S + UID_S + ACK_S;
+}
 
 
 void print_ip_int(unsigned char* ip)
@@ -15,7 +26,7 @@ void print_byte_array(unsigned char* buf, int x)
     for (i = 0; i < x; i++)
     {
         if (i > 0) printf(":");
-        printf("%02X", buf[i]);
+        printf("%02X", (unsigned char)buf[i]);
     }
     printf("\n");
 }
@@ -30,6 +41,41 @@ void int_to_bytes(unsigned char* bytes, unsigned long n)
     bytes[3] = n & 0xFF;
 }
 
+
+void print_description_struct(struct pdescription *d)
+{
+    log_info("Length of description: ");
+    print_byte_array(d->len, DLENGTH_S);
+
+    log_info("Length (int) converted: ");
+    printf("%d \n", bytes_to_single_int(d->len));
+
+
+    log_info("Event identifier: ");
+    print_byte_array(d->eventid, EVENTID_S);
+
+    log_info("Event identifier (int) converted: ");
+    printf("%d \n", bytes_to_single_int(d->eventid));
+
+
+    log_info("Ack flag: ");
+    print_byte_array(d->ack, ACK_S);
+
+    log_info("Ack meaning: ");
+    if(d->ack[0] & 1)
+        log_info("true \n");
+    else
+        log_info("false \n");
+
+    char uuid_str[37];      // ex. "1b4e28ba-2fa1-11d2-883f-0016d3cca427" + "\0"
+    uuid_unparse_lower(d->uid, uuid_str);
+    log_info("UUID: ");
+    printf("%s \n", uuid_str);
+
+    log_info("Description: ");
+    printf("%s \n", d->textd);
+    return;
+}
 
 void print_packet(struct spacket* p)
 {
@@ -48,30 +94,21 @@ void print_packet(struct spacket* p)
     log_info("Number of events: ");
     print_byte_array(p->nbevents, NBEVENTS_S);
 
-    LLNode* headevents = p->eventids->head;
+    if(!p->eventdescri)
+        return;
+
+
     LLNode* headdescri = p->eventdescri->head;
+    LLNode* current = p->eventdescri->head;
 
-    LLNode* current = p->eventids->head;
-
-    for(int i = 0; i < sizeOfLinkedList(p->eventids); i++)
-    {
-        if(!current)
-            log_error("Couldn't printout events", __func__, __LINE__);
-        printf("Event ID #%d: ", i);
-        print_byte_array((unsigned char*)current->value, EVENTID_S);
-        current = current->next;
-    }
-
-    current = p->eventdescri->head;
+    printf("\n\n");
     for(int i = 0; i < sizeOfLinkedList(p->eventdescri); i++)
     {
         if(!current)
             log_error("Couldn't printout event descriptions", __func__, __LINE__);
-        printf("Description #%d : %s \n", i, (char*) current->value);
+        print_description_struct((struct pdescription*) current->value);
         current = current->next;
     }
 
-    p->eventids->head = headevents;
     p->eventdescri->head = headdescri;
-
 }
