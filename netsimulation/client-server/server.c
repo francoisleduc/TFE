@@ -50,11 +50,11 @@ static struct spacket* process_packet(unsigned char* buf)
     // memcpy(destination, source, length)
     memcpy(rp->version, buf, VERSION_S);
     memcpy(rp->srcip, buf+VERSION_S, SRCIP_S); // +1
-    memcpy(rp->devname, buf+VERSION_S+SRCIP_S, DEVNAME_S); // +5 
-    memcpy(rp->port, buf+VERSION_S+SRCIP_S+DEVNAME_S, PORT_S); // + 25
-    memcpy(rp->nbevents, buf+VERSION_S+SRCIP_S+DEVNAME_S+PORT_S, NBEVENTS_S); // +26
+    memcpy(rp->sidentifier, buf+VERSION_S+SRCIP_S, SRCID_S); 
+    memcpy(rp->seq, buf+VERSION_S+SRCIP_S+SRCID_S, SEQ_S); 
+    memcpy(rp->nbevents, buf+VERSION_S+SRCIP_S+SRCID_S+SEQ_S, NBEVENTS_S); 
 
-    int index = VERSION_S+SRCIP_S+DEVNAME_S+PORT_S+NBEVENTS_S; // 27 
+    int index = VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;  
 
     for(int i = 0; i < (int) rp->nbevents[0]; i++)
     {

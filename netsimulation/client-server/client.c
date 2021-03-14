@@ -12,6 +12,26 @@
 #include <uuid/uuid.h>
 
 
+#define NETWORK_MAX_NODES 10000 /* The number of switches and routers combined in the network */
+LinkedList*eventsQ = NULL;
+
+struct event* make_event(int id, char* textdescription, int ack)
+{
+    struct event* e = malloc(sizeof(struct event));
+    if(!e)
+    {
+        log_error("Could not allocate event client side", __func__, __LINE__);
+        return NULL;
+    }
+
+    e->id = id;
+    e->ack = ack;
+    strcpy(e->textde, textdescription);
+
+    return e;
+}
+
+
 struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* uid, char* desc, unsigned char* ack, unsigned char *id)
 {
     unsigned char len1[DLENGTH_S];
@@ -30,8 +50,6 @@ struct pdescription* create_description_struct(struct pdescription* d, int lengt
 }
 
 
-
-
 struct spacket* create_dummy_packet_struct(struct spacket* p)
 {
     p->eventdescri = newLinkedList();
@@ -40,10 +58,14 @@ struct spacket* create_dummy_packet_struct(struct spacket* p)
     unsigned char myip[SRCIP_S] = {0x7F , 0x0, 0x0, 0x1};
     memcpy(p->srcip, myip, SRCIP_S);
     
-    char* dv = "switch-1";
-    strcpy(p->devname, dv);
-    
-    p->port[0] = 0x4; // 4th port of switch 
+    unsigned char srcid[SRCID_S];
+    int_to_bytes(srcid, 100); // id 1
+    memcpy(p->sidentifier, srcid, SRCID_S);
+
+    unsigned char seqn[SEQ_S];
+    int seqNo = rand();
+    int_to_bytes(seqn, seqNo);
+    memcpy(p->seq, seqn, SEQ_S);
 
     p->nbevents[0] = 0x2;
 
@@ -63,7 +85,7 @@ struct spacket* create_dummy_packet_struct(struct spacket* p)
     uuid_generate_time(uuid2);
 
     unsigned char ackevent1[ACK_S] = {0x1}; // true 
-    unsigned char ackevent2[ACK_S] = {0x0}; // false
+    unsigned char ackevent2[ACK_S] = {0x0}; // false 
 
     struct pdescription *d1 = malloc(sizeof(struct pdescription));
     struct pdescription *d2 = malloc(sizeof(struct pdescription));
@@ -89,16 +111,16 @@ void create_packet_buf(char* buf, struct spacket* p) {
     if(!p)
     	return;
     memcpy(buf, p->version, VERSION_S);
-    memcpy(buf+VERSION_S,  p->srcip, SRCIP_S); // 1
-    memcpy(buf+VERSION_S+SRCIP_S,  p->devname, DEVNAME_S); // 5
-    memcpy(buf+VERSION_S+SRCIP_S+DEVNAME_S,  p->port, PORT_S); // 25
-    memcpy(buf+VERSION_S+SRCIP_S+DEVNAME_S+PORT_S,  p->nbevents, NBEVENTS_S); //26
+    memcpy(buf+VERSION_S, p->srcip, SRCIP_S); // 1
+    memcpy(buf+VERSION_S+SRCIP_S,  p->sidentifier, SRCID_S);
+    memcpy(buf+VERSION_S+SRCIP_S+SRCID_S,  p->seq, SEQ_S);
+    memcpy(buf+VERSION_S+SRCIP_S+SRCID_S+SEQ_S,  p->nbevents, NBEVENTS_S); 
 
     
     LLNode* headdescri = p->eventdescri->head;
 
 
-    int index = VERSION_S+SRCIP_S+DEVNAME_S+PORT_S+NBEVENTS_S; // 27
+    int index = VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;
 
     LLNode *current = p->eventdescri->head;
     for(int i = 0; i < sizeOfLinkedList(p->eventdescri); i++)
@@ -120,7 +142,6 @@ void create_packet_buf(char* buf, struct spacket* p) {
         current = current->next;
     }
     p->eventdescri->head = headdescri;
-
 }
 
 

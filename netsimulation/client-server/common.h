@@ -11,10 +11,9 @@
 
 #define VERSION_S 1
 #define SRCIP_S 4
-#define DEVNAME_S 20
-#define PORT_S 1
 #define NBEVENTS_S 1
-
+#define SRCID_S 4
+#define SEQ_S 4
 
 #define EVENTID_S 4
 #define DLENGTH_S 4
@@ -24,8 +23,8 @@
 struct spacket{
     unsigned char version[VERSION_S];
     unsigned char srcip[SRCIP_S];
-    char devname[DEVNAME_S];
-    unsigned char port[PORT_S];
+    unsigned char sidentifier[SRCIP_S];
+    unsigned char seq[SEQ_S];
     unsigned char nbevents[NBEVENTS_S];
     LinkedList* eventdescri;
 };

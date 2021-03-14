@@ -11,10 +11,13 @@
 #include <netinet/in.h>
 #include <netdb.h> 
 
+#include <time.h>
 #include <ctype.h>
 #include "common.h"
 #include "log.h"
 #include "client.h"
+
+extern LinkedList* eventsQ;
 
 int main(int argc, char **argv) {
     int sockfd, portno, n;
@@ -24,6 +27,7 @@ int main(int argc, char **argv) {
     char *hostname;
     char buf[BUFSIZE];
 
+    srand(time(NULL));
     /* check command line arguments */
     if (argc != 3) {
        log_fatal("usage: ./client <hostname> <port>", __FILE__, __func__, __LINE__);
@@ -58,6 +62,7 @@ int main(int argc, char **argv) {
     /* send the message to the server */
     
 
+    eventsQ = newLinkedList();
     // Building packet 
     struct spacket *p;
     p = (struct spacket*) malloc(sizeof(struct spacket));
