@@ -6,14 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <stdbool.h>
 #include "client.h"
 #include <ctype.h>
 #include <uuid/uuid.h>
 
-
+#define MAX_EVENT_P 100
 #define NETWORK_MAX_NODES 10000 /* The number of switches and routers combined in the network */
-LinkedList*eventsQ = NULL;
+
+List* eventsQACK = NULL;
+List* eventsQNOACK = NULL;
+
 
 struct event* make_event(int id, char* textdescription, int ack)
 {
@@ -26,11 +29,50 @@ struct event* make_event(int id, char* textdescription, int ack)
 
     e->id = id;
     e->ack = ack;
-    strcpy(e->textde, textdescription);
-
+    //strcpy(e->textde, textdescription);
+    e->textde = textdescription;
+    e->textlen = strlen(textdescription);
+    e->assocSeqNb = -1;
+    e->hasBeenAcked = false;
     return e;
 }
 
+// param1 = list of events (struct event)
+struct spacket* organize_packet(List* queueACK, List* queueNOACK, bool ackq)
+{
+    List* q;
+    if(ackq)
+        q = queueACK;
+    else
+        q = queueNOACK;
+
+    int pheadersize = get_p_header_size();
+    int sum = pheadersize;
+
+    Element* saveh = get_list_head(q);
+    Element* current = get_list_head(q); // make a copy 
+
+    struct event* extracted[MAX_EVENT_P] = { NULL }; // events to be put in next packet and extracted from the list 
+    int i = 0;
+    for(i = 0; i < get_list_size(q); i++)
+    {
+        struct event* ev = (struct event*)get_element_value(current);
+        if(sum + get_description_header_size() + ev->textlen  < BUFSIZE)
+            extracted[i] = ev;
+        else
+            break;
+
+        sum += ev->textlen + get_description_header_size();
+        current = get_element_next(current);
+    }
+    printf("Total sum : %d - Number of events: %d \n", sum, i);
+    set_head_list(q, saveh);
+
+    // For now we have an array with the events we'd like to put in the next packet.
+    // Add these into the pending ACK Q (buffering them before deleting them as soon as we receive an ACK from the lambda server)
+    // create_packet(from list of events?)
+    return NULL;
+}
 
 struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* uid, char* desc, unsigned char* ack, unsigned char *id)
 {
@@ -52,7 +94,7 @@ struct pdescription* create_description_struct(struct pdescription* d, int lengt
 
 struct spacket* create_dummy_packet_struct(struct spacket* p)
 {
-    p->eventdescri = newLinkedList();
+    p->eventdescri = new_list();
 
     p->version[0] = 0x1;
     unsigned char myip[SRCIP_S] = {0x7F , 0x0, 0x0, 0x1};
@@ -98,8 +140,10 @@ struct spacket* create_dummy_packet_struct(struct spacket* p)
     d1 = create_description_struct(d1, length1, uuid1, descr1, ackevent1, id1);
     d2 = create_description_struct(d2, length2, uuid2, descr2, ackevent2, id2);
 
-    insertInLinkedList(p->eventdescri, d1);
-    insertInLinkedList(p->eventdescri, d2);
+    insert_in_list(p->eventdescri, d1);
+    insert_in_list(p->eventdescri, d2);
+    //insertInLinkedList(p->eventdescri, d1);
+    //insertInLinkedList(p->eventdescri, d2);
     
     print_packet(p);
     return p;
@@ -117,18 +161,18 @@ void create_packet_buf(char* buf, struct spacket* p) {
     memcpy(buf+VERSION_S+SRCIP_S+SRCID_S+SEQ_S,  p->nbevents, NBEVENTS_S); 
 
     
-    LLNode* headdescri = p->eventdescri->head;
+    Element* headdescri = get_list_head(p->eventdescri);
 
 
     int index = VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;
 
-    LLNode *current = p->eventdescri->head;
-    for(int i = 0; i < sizeOfLinkedList(p->eventdescri); i++)
+    Element *current = get_list_head(p->eventdescri);
+    for(int i = 0; i < get_list_size(p->eventdescri); i++)
     {
         if(!current)
             log_error("Could not read event description from buffer", __func__, __LINE__);
 
-        struct pdescription *cpd = (struct pdescription*)current->value;
+        struct pdescription *cpd = (struct pdescription*) get_element_value(current);
         memcpy(buf+index, cpd->len, DLENGTH_S);
         index = index + DLENGTH_S;
         memcpy(buf+index, cpd->eventid, EVENTID_S);
@@ -139,9 +183,9 @@ void create_packet_buf(char* buf, struct spacket* p) {
         index = index + UID_S;
         memcpy(buf+index, cpd->textd, cpd->textlen);
         index = index + cpd->textlen;
-        current = current->next;
+        current = get_element_next(current);
     }
-    p->eventdescri->head = headdescri;
+    set_head_list(p->eventdescri, headdescri);
 }
 
 

@@ -14,6 +14,11 @@ int get_description_header_size(void)
 }
 
 
+int get_p_header_size(void)
+{
+    return VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;
+}
+
 void print_ip_int(unsigned char* ip)
 {
     printf("%d.%d.%d.%d\n", ip[0], ip[1], ip[2], ip[3]);   
@@ -105,17 +110,16 @@ void print_packet(struct spacket* p)
     if(!p->eventdescri)
         return;
 
-    LLNode* headdescri = p->eventdescri->head;
-    LLNode* current = p->eventdescri->head;
+    Element* headdescri = get_list_head(p->eventdescri);
+    Element* current = get_list_head(p->eventdescri);
 
     printf("\n\n");
-    for(int i = 0; i < sizeOfLinkedList(p->eventdescri); i++)
+    for(int i = 0; i < get_list_size(p->eventdescri); i++)
     {
         if(!current)
             log_error("Couldn't printout event descriptions", __func__, __LINE__);
-        print_description_struct((struct pdescription*) current->value);
-        current = current->next;
+        print_description_struct((struct pdescription*)get_element_value(current));
+        current = get_element_next(current);
     }
-
-    p->eventdescri->head = headdescri;
+    set_head_list(p->eventdescri, headdescri);
 }

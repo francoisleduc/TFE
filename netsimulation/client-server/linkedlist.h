@@ -1,116 +1,194 @@
-/* ========================================================================= *
- * LinkedList interface:
- * Note that the linked list structure
- * is not opaque so that you can manipulate it directly.
- * ========================================================================= */
+#ifndef LINKED_LIST_H
+#define LINKED_LIST_H
 
-#ifndef _LINKED_LIST_H_
-#define _LINKED_LIST_H_
-
+#include "log.h"
 #include <stddef.h>
-#include <stdbool.h>
-
-
-typedef struct llnode_t {
-    const void* value;
-    struct llnode_t* next;
-
-} LLNode;
-
-typedef struct linkedlist_t {
-    size_t size;
-    LLNode* head;
-    LLNode* last;
-}LinkedList;
-
-
-
+typedef struct Element_t Element;
+typedef struct LinkedList_t List;
 
 /**
- * \fn LinkedList* newLinkedList(void)
- * \brief Creates a new single linked list. Must later be deleted by calling freeLinkedList().
+ * \fn void* get_element_value(Element* el)
+ * \brief Gets value accessor.
  *
+ * \param el The element structure.
  *
- *
- * \return A pointer to the new linkedlist or NULL in case of error.
+ * \return The content.
  *
  */
-LinkedList* newLinkedList(void);
+void* get_element_value(Element* el);
 
+/**
+ * \fn void* get_element_previous(Element* el)
+ * \brief Gets previous accessor.
+ *
+ * \param el The element structure.
+ *
+ * \return The previous element.
+ *
+ */
+Element* get_element_previous(Element* el);
 
+/**
+ * \fn void* get_element_next(Element* el)
+ * \brief Gets next accessor.
+ *
+ * \param el The element structure.
+ *
+ * \return The next element.
+ *
+ */
+Element* get_element_next(Element* el);
 
-
+/**
+ * \fn size_t get_list_size(List* list)
+ * \brief Gets size accessor.
+ *
+ * \param list The list structure.
+ *
+ * \return Size of the list.
+ *
+ */
+size_t get_list_size(List* list);
 
 
 /**
- * \fn void freeLinkedList(LinkedList* ll, bool freeContent)
- * \brief Frees the allocated memory of the given LinkedList.
+ * \fn size_t get_list_head(List* list)
+ * \brief Gets first element accessor.
  *
- * \param ll A valid pointer to a LinkedList object
- * \param freeContent Whether to free the content as well.
+ * \param list The list structure.
+ *
+ * \return The first element.
+ *
+ */
+Element* get_list_head(List* list);
+
+/**
+ * \fn size_t get_list_tail(List* list)
+ * \brief Gets last element accessor.
+ *
+ * \param list The list structure.
+ *
+ * \return The last element.
+ *
+ */
+Element* get_list_tail(List* list);
+
+/**
+ * \fn void set_element_value(Element* el, void* value)
+ * \brief Sets value accessor.
+ *
+ * \param el The element structure.
+ * \param value The element content.
  *
  * \return Void.
  *
  */
-void freeLinkedList(LinkedList* ll, bool freeContent);
+void set_element_value(Element* el, void* value);
 
+/**
+ * \fn void set_element_previous(Element* el, Element* prev)
+ * \brief Sets previous accessor.
+ *
+ * \param el The element structure.
+ * \param prev The previous element structure.
+ *
+ * \return Void.
+ *
+ */
+void set_element_previous(Element* el, Element* prev);
+
+/**
+ * \fn void set_element_next(Element* el, Element* next)
+ * \brief Sets next element accessor.
+ *
+ * \param el The element structure.
+ * \param next The next element structure.
+ *
+ * \return Void.
+ *
+ */
+void set_element_next(Element* el, Element* next);
+
+/**
+ * \fn void set_head_list(List* list, Element* el)
+ * \brief Assigns new head element pointer.
+ *
+ * \param list The list structure.
+ * \param el The element structure to be assigned to head field.
+ *
+ * \return Void.
+ *
+ */
+void set_head_list(List* list, Element* el);
+
+/**
+ * \fn Element* new_element(Element* prev, Element* next, void* value)
+ * \brief Instantiates an element structure.
+ *
+ * \param prev The previous element structure.
+ * \param next The next element structure.
+ * \param value The element content.
+ *
+ * \return The element structure, or NULL if error.
+ *
+ */
+Element* new_element(Element* prev, Element* next, void* value);
 
 
 /**
- * \fn size_t sizeOfLinkedList(const LinkedList* ll)
- * \brief Counts the number of elements stored in the given LinkedList.
+ * \fn void free_element(Element *el)
+ * \brief Frees an element structure.
  *
- * \param ll A valid pointer to a LinkedList object
+ * \param el The element structure.
  *
- * \return The amount of elements stored in linked list.
+ * \return Void.
  *
  */
-size_t sizeOfLinkedList(const LinkedList* ll);
+void free_element(Element *el);
 
-
-
-
+/**
+ * \fn List* new_list(void)
+ * \brief Instantiates a list structure.
+ *
+ * \return The list structure, or NULL if error.
+ *
+ */
+List* new_list(void);
 
 
 /**
- * \fn bool insertInLinkedList(LinkedList* ll, const void* value)
- * \brief Inserts a new element in the linked list.
+ * \fn void free_list(List* list)
+ * \brief Frees a list structure.
  *
- * \param ll A valid pointer to a LinkedList object
- * \param value The value to store
+ * \param list The list structure.
  *
- * \return A boolean equal to true if the new element was successfully
- *              inserted, false otherwise (error).
+ * \return Void.
  *
  */
-bool insertInLinkedList(LinkedList* ll, const void* value);
-
-
-
+void free_list(List* list);
 
 /**
- * \fn LinkedList* filterLinkedList(LinkedList* ll,  bool keepIt_fn_t(const void*))
- * \brief Return a new linked list containing (the pointer to) the element of the
- *         original linked list for which the keepIt predicate is true.
+void insert_in_list(List* list, void* value);
+ * \brief Inserts a value in the list.
  *
- * \param ll A valid pointer to a LinkedList object
- * \param keepIt A predicate operating on the values of the linked list
+ * \param list The list structure.
+ * \param value The content.
  *
- * \return A (possibly empty) linked list or NULL in case of error.
+ * \return Void.
  *
  */
+void insert_in_list(List* list, void* value);
 
-LinkedList* filterLinkedList(LinkedList* ll,  bool keepIt_fn_t(const void*));
+/**
+ * \fn void delete_in_list(List *list, Element* el)
+ * \brief Deletes the element in the list.
+ *
+ * \param list The list structure.
+ * \param el The element structure.
+ *
+ * \return Void.
+ *
+ */
+void delete_in_list(List *list, Element* el);
 
-/*
- * USAGE (example for strings)
- * bool startByH(const void* string)
- * {
- *     const char* string_ = string;
- *     return string_[0] == 'h';
- * }
- * ...
- * LinkedList* filtered = filterLinkedList(ll, &startByH);
-*/
-
-#endif // !_LINKED_LIST_H_
+#endif

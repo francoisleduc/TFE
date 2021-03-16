@@ -1,93 +1,297 @@
-/* ========================================================================= *
- * LinkedList definition
- * ========================================================================= */
-
+/**
+ * \file linkedlist.c
+ * \brief A linked list implementation.
+ * \version 0.1
+ *
+ * A linear collection of data elements.
+ *
+ */
 
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include "linkedlist.h"
 
+/* ========================================================================= *
+ *                             STRUCTURES
+ * ========================================================================= */
 
-
-LinkedList* newLinkedList(void)
+/**
+ * \struct Element_t
+ * \brief Holds content and neighbours pointer.
+ *
+ */
+struct Element_t 
 {
-    LinkedList* ll = malloc(sizeof(LinkedList));
-    if (!ll)
-        return NULL;
-    ll->head = NULL;
-    ll->last = NULL;
-    ll->size = 0;
-    return ll;
-}
+    void* value; /*!< The content. */
+    Element* prev; /*!< Previous element. */
+    Element* next; /*!< Next element. */
+};
 
-
-
-void freeLinkedList(LinkedList* ll, bool freeContent)
+/**
+ * \struct LinkedList_t
+ * \brief Represents a sequence of elements.
+ *
+ */
+struct LinkedList_t 
 {
-    // Free LLNodes
-    LLNode* node = ll->head;
-    LLNode* prev = NULL;
-    while(node != NULL)
+    size_t size; /*!< Size of the sequence. */
+    Element* head; /*!< The first element. */
+    Element* tail; /*!< The last element. */
+};
+
+/* ========================================================================= *
+ *                             GET ACCESSORS
+ * ========================================================================= */
+
+void* get_element_value(Element* el)
+{
+    if (el == NULL)
     {
-        prev = node;
-        node = node->next;
-        if(freeContent)
-            free((void*)prev->value); // Discard const qualifier
-        free(prev);
-    }
-    // Free LinkedList sentinel
-    free(ll);
-}
-
-
-size_t sizeOfLinkedList(const LinkedList* ll)
-{
-    return ll->size;
-}
-
-
-bool insertInLinkedList(LinkedList* ll, const void* value)
-{
-    LLNode* node = malloc(sizeof(LLNode));
-    if(!node)
-        return false;
-    // Initialisation
-    node->next = NULL;
-    node->value = value;
-    // Adding the node to the list
-    if(!ll->last)
-    {
-        // First element in the list
-        ll->last = node;
-        ll->head = node;
-    } else {
-        //At least one element in the list
-        ll->last->next = node;
-        ll->last = node;
-    }
-    // In both cases, increment size
-    ll->size++;
-    return true;
-}
-
-LinkedList* filterLinkedList(LinkedList* ll,  bool keepIt_fn_t(const void*))
-{
-    LinkedList* filtered = newLinkedList();
-    if (!filtered)
-        return NULL;
-    LLNode* curr = ll->head;
-    bool error = false;
-    while(!error && curr != NULL)
-    {
-        if(keepIt_fn_t(curr->value))
-            error = error  || !insertInLinkedList(filtered, curr->value);
-        curr = curr->next;
-    }
-    if(error)
-    {
-        freeLinkedList(filtered, false);
+        log_error("Structure is NULL", __func__, __LINE__);
         return NULL;
     }
-    return filtered;
+
+    return el->value;
+}
+
+Element* get_element_previous(Element* el)
+{
+    if (el == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return NULL;
+    }
+
+    return el->prev;
+}
+
+Element* get_element_next(Element* el)
+{
+    if (el == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return NULL;
+    }
+
+    return el->next;
+}
+
+size_t get_list_size(List* list)
+{
+    if (list == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return 0;
+    }
+
+    return list->size;
+}
+
+Element* get_list_head(List* list)
+{
+    if (list == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return NULL;
+    }
+
+    return list->head;
+}
+
+Element* get_list_tail(List* list)
+{
+    if (list == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return NULL;
+    }
+    
+    return list->tail;
+}
+
+/* ========================================================================= *
+ *                             SET ACCESSORS
+ * ========================================================================= */
+
+void set_element_value(Element* el, void* value)
+{
+    if (el == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+
+    el->value = value;
+}
+
+void set_element_previous(Element* el, Element* prev)
+{
+    if (el == NULL || prev == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+
+    el->prev = prev;
+}
+
+void set_element_next(Element* el, Element* next)
+{
+    if (el == NULL || next == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+
+    el->next = next;
+}
+
+
+void set_head_list(List* list, Element* el)
+{
+    if(list == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+
+    list->head = el;
+}
+
+/* ========================================================================= *
+ *                             GENERAL FUNCTIONS
+ * ========================================================================= */
+
+Element* new_element(Element* prev, Element* next, void* value)
+{
+    Element *el = malloc(sizeof(Element));
+    if (el == NULL)
+    {
+        log_fatal("Couldn't dynamically allocate", __FILE__, __func__, __LINE__);
+        return NULL;   
+    }
+
+    el->prev = prev;
+    el->next = next;
+    el->value = value;
+
+    return el;
+}
+
+void free_element(Element *el)
+{
+    if (el == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+
+    free(el);
+}
+
+List* new_list(void)
+{
+    List* list = malloc(sizeof(List));
+    if (list == NULL)
+    {
+        log_fatal("Couldn't dynamically allocate", __FILE__, __func__, __LINE__);
+        return NULL;   
+    }
+
+    list->head = NULL;
+    list->tail = NULL;
+    list->size = 0;
+    
+    return list;
+}
+
+void free_list(List* list)
+{
+    if (list == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+
+    Element* el = list->head;
+    Element *prev = NULL;
+
+    while(el != NULL)
+    {
+        prev = el;
+        el = el->next;
+        free_element(prev);
+    }
+
+    free(list);
+}
+
+void insert_in_list(List* list, void* value)
+{
+    if (list == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+    
+    Element* el = malloc(sizeof(Element));
+    if (el == NULL)
+    {
+        log_fatal("Couldn't dynamically allocate", __FILE__, __func__, __LINE__);
+        return;   
+    }
+
+    el->next = NULL;
+    el->prev = NULL;
+    el->value = value;
+
+    if(list->tail == NULL)
+    {
+        /* First element in the list */
+        list->tail = el;
+        list->head = el;
+    }
+    else
+    {
+        /* At least one element in the list */
+        el->prev = list->tail;
+        list->tail->next = el;
+        list->tail = el;
+    }
+
+    list->size++;
+}
+
+void delete_in_list(List *list, Element* el)
+{
+    if (el == NULL)
+    {
+        log_error("Structure is NULL", __func__, __LINE__);
+        return;
+    }
+
+    if (el == list->head && el == list->tail)
+    {
+        list->head = NULL;
+        list->tail = NULL;
+    }
+    else if (el == list->head)
+    {
+        list->head = el->next;
+        list->head->prev = NULL;
+    }
+    else if (el == list->tail)
+    {
+        list->tail = el->prev;
+        list->tail->next = NULL;
+    }
+    else
+    {
+        /* Links previous and next element together before deletion */
+        el->prev->next = el->next;
+        el->next->prev = el->prev;
+    }
+
+    list->size--;
+    free_element(el);
 }

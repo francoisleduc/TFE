@@ -17,6 +17,16 @@
 
 #include "common.h"
 
+/* Must find a scalable solution to parse each packet description according to their ID (event id) */ 
+static int process_description_event1() 
+{
+    return 1;
+}
+
+static int process_description_event2()
+{
+    return 2;
+}
 
 static int process_description(struct pdescription* d, unsigned char* buf)
 {
@@ -42,7 +52,7 @@ static struct spacket* process_packet(unsigned char* buf)
     if(!rp)
     return NULL;
 
-    rp->eventdescri = newLinkedList();
+    rp->eventdescri = new_list();
 
     if(!rp->eventdescri)
         return NULL;
@@ -63,7 +73,7 @@ static struct spacket* process_packet(unsigned char* buf)
         dlen = process_description(d, buf+index);
     
         index = index + dlen;
-        insertInLinkedList(rp->eventdescri, d);
+        insert_in_list(rp->eventdescri, d);
     }
 
     log_info("Processed the whole packet \n");
