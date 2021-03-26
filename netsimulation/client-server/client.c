@@ -11,12 +11,30 @@
 #include <ctype.h>
 #include <uuid/uuid.h>
 
-#define MAX_EVENT_P 100
-#define NETWORK_MAX_NODES 10000 /* The number of switches and routers combined in the network */
+#define MAX_EVENT_P 50
+//#define NETWORK_MAX_NODES 10000 /* The number of switches and routers combined in the network */
 
 List* eventsQACK = NULL;
 List* eventsQNOACK = NULL;
 
+
+
+void free_list_event(List* list)
+{
+    if(list)
+    {
+        Element* curr = get_list_head(list);
+        while(curr != NULL)
+        {
+            void* val = get_element_value(curr);
+            if(val)
+                free(val);
+            curr = get_element_next(curr);
+        }
+
+        free_list(list);
+    }   
+}
 
 struct event* make_event(int id, char* textdescription, int ack)
 {
@@ -37,8 +55,8 @@ struct event* make_event(int id, char* textdescription, int ack)
     return e;
 }
 
-// param1 = list of events (struct event)
-struct spacket* organize_packet(List* queueACK, List* queueNOACK, bool ackq)
+// returns an array of event* 
+struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int* nbevents)
 {
     List* q;
     if(ackq)
@@ -52,9 +70,9 @@ struct spacket* organize_packet(List* queueACK, List* queueNOACK, bool ackq)
     Element* saveh = get_list_head(q);
     Element* current = get_list_head(q); // make a copy 
 
-    struct event* extracted[MAX_EVENT_P] = { NULL }; // events to be put in next packet and extracted from the list 
+    struct event** extracted = malloc(MAX_EVENT_P*sizeof(struct event)); // events to be put in next packet and extracted from the list 
     int i = 0;
-    for(i = 0; i < get_list_size(q); i++)
+    for(i = 0; i < get_list_size(q) && i < MAX_EVENT_P; i++)
     {
         struct event* ev = (struct event*)get_element_value(current);
         if(sum + get_description_header_size() + ev->textlen  < BUFSIZE)
@@ -64,6 +82,7 @@ struct spacket* organize_packet(List* queueACK, List* queueNOACK, bool ackq)
 
         sum += ev->textlen + get_description_header_size();
         current = get_element_next(current);
+        (*nbevents)++;
     }
     printf("Total sum : %d - Number of events: %d \n", sum, i);
     set_head_list(q, saveh);
@@ -71,7 +90,87 @@ struct spacket* organize_packet(List* queueACK, List* queueNOACK, bool ackq)
     // For now we have an array with the events we'd like to put in the next packet.
     // Add these into the pending ACK Q (buffering them before deleting them as soon as we receive an ACK from the lambda server)
     // create_packet(from list of events?)
-    return NULL;
+    return extracted;
+}
+
+void free_buffer_waiting_events(struct event** ev, List* queue, int nbevents)
+{
+    for(int i = 0; i < nbevents; i++)
+    {
+        Element* el = find_element_from_value(queue, ev[i]); // ev[i] is the value (event*)
+        delete_in_list(queue, el);
+        if(ev[i] != NULL)
+            free(ev[i]);
+    }
+}
+
+
+void free_packet_struct(struct spacket* p)
+{
+    if(p)
+    {
+        Element* curr = get_list_head(p->eventdescri);
+        while (curr != NULL)
+        {
+            struct pdescription *d = get_element_value(curr);
+            if(d)
+                free(d);
+
+            curr = get_element_next(curr);
+        }
+        free_list(p->eventdescri);
+        free(p);
+    }
+}
+
+
+struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* srcip, unsigned char* version, int nbevents)
+{
+    struct spacket* p = malloc(sizeof(struct spacket));
+    if(!p)
+        return NULL;
+
+
+    p->eventdescri = new_list();
+
+    p->version[0] = version[0];
+    memcpy(p->srcip, srcip, SRCIP_S);
+    
+    unsigned char srcid[SRCID_S];
+    int_to_bytes(srcid, id);
+    memcpy(p->sidentifier, srcid, SRCID_S);
+
+
+    unsigned char seqn[SEQ_S];
+    int seqNo = rand();
+    int_to_bytes(seqn, seqNo);
+    memcpy(p->seq, seqn, SEQ_S);
+
+
+    p->nbevents[0] = (unsigned char) nbevents;
+    for(int i = 0; i < nbevents; i++)
+    {   
+        struct event* cur = ev[i];
+        struct pdescription *d = malloc(sizeof(struct pdescription));
+        if(!d)
+            return NULL;
+
+        int length = get_description_header_size() + strlen(cur->textde);
+        unsigned char uuid[16]; // here uuid_t is a typdef for char[16]
+        uuid_generate_time(uuid);
+
+        unsigned char ida[EVENTID_S];
+        int_to_bytes(ida, id);
+
+        unsigned char ackevent[ACK_S];
+        ackevent[0] = (cur->ack == 1) ? 0x1 : 0x0;
+        d = create_description_struct(d, length, uuid, cur->textde, ackevent, ida);
+        insert_in_list(p->eventdescri, d);
+    }
+
+    print_packet(p);
+    return p;
+
 }
 
 struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* uid, char* desc, unsigned char* ack, unsigned char *id)

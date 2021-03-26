@@ -46,6 +46,27 @@ static int process_description(struct pdescription* d, unsigned char* buf)
 }
 
 
+static void free_packet_struct(struct spacket* p)
+{
+    if(p)
+    {
+        Element* curr = get_list_head(p->eventdescri);
+        while (curr != NULL)
+        {
+            struct pdescription *d = get_element_value(curr);
+            if(d)
+            {
+                free(d->textd);
+                free(d);
+            }
+
+            curr = get_element_next(curr);
+        }
+        free_list(p->eventdescri);
+        free(p);
+    }
+}
+
 static struct spacket* process_packet(unsigned char* buf)
 {
     struct spacket* rp = malloc(sizeof(struct spacket));
@@ -162,6 +183,7 @@ int main(int argc, char **argv) {
             print_packet(rp);
         }
 
+        free_packet_struct(rp);
         /* 
          * sendto: sends back a response to the initial sender of the datagram
          */
@@ -169,15 +191,18 @@ int main(int argc, char **argv) {
         
         if(responding) 
         {
-          char* response = "ACK\n";
-          bzero(buf, BUFSIZE); // We use the same buffer so it seems to erase what's inside each time we're done with it
-          bcopy(response, buf, strlen(response));
+            for(int i = 0; i < 3; i++)
+            {
+                char* response = "ACK\n";
+                  bzero(buf, BUFSIZE); // We use the same buffer so it seems to erase what's inside each time we're done with it
+                  bcopy(response, buf, strlen(response));
 
-          printf("Sending back: %s", buf);
-          n = sendto(sockfd, buf, strlen((char*)buf), 0, 
-               (struct sockaddr *) &clientaddr, clientlen);
-          if (n < 0) 
-            log_error("Could not send response datagram", __func__, __LINE__);
+                  printf("Sending back: %s", buf);
+                  n = sendto(sockfd, buf, strlen((char*)buf), 0, 
+                       (struct sockaddr *) &clientaddr, clientlen);
+                  if (n < 0) 
+                    log_error("Could not send response datagram", __func__, __LINE__);
+            }
         }
 
     } // end while server 

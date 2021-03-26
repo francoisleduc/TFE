@@ -5,7 +5,7 @@ AR=ar
 
 # FLAGS #
 CFLAGS=-Wall -Wmissing-prototypes -luuid
-LDFLAGS=-luuid
+LDFLAGS=-luuid -lpthread
 
 # CONFIGURATION FILE #
 EXEC=fake_switch

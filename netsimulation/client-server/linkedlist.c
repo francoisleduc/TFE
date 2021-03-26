@@ -295,3 +295,18 @@ void delete_in_list(List *list, Element* el)
     list->size--;
     free_element(el);
 }
+
+
+Element* find_element_from_value(List* list, void* value)
+{
+    Element* curr = list->head;
+    while(curr != NULL)
+    {
+        if(value == curr->value)
+        {
+            return curr;
+        }
+        curr = curr->next;
+    }
+    return NULL;
+}

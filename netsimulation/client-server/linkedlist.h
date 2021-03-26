@@ -191,4 +191,17 @@ void insert_in_list(List* list, void* value);
  */
 void delete_in_list(List *list, Element* el);
 
+
+
+/**
+ * \fn Element* find_element_from_value(List* list, void* value)
+ * \brief Finds the element in the list with value "value"
+ *
+ * \param list The list structure.
+ * \param value The element value we are looking for.
+ *
+ * \return The element which has its field value set to "value".
+ *
+ */
+Element* find_element_from_value(List* list, void* value);
 #endif
