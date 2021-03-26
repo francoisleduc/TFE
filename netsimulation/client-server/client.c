@@ -11,8 +11,6 @@
 #include <ctype.h>
 #include <uuid/uuid.h>
 
-#define MAX_EVENT_P 50
-//#define NETWORK_MAX_NODES 10000 /* The number of switches and routers combined in the network */
 
 List* eventsQACK = NULL;
 List* eventsQNOACK = NULL;
@@ -56,13 +54,18 @@ struct event* make_event(int id, char* textdescription, int ack)
 }
 
 // returns an array of event* 
-struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int* nbevents)
+struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int* nbevents, struct event** selectedEvts)
 {
     List* q;
+    *nbevents = 0;
     if(ackq)
         q = queueACK;
     else
         q = queueNOACK;
+
+    if(get_list_size(q) == 0)
+        return NULL;
+
 
     int pheadersize = get_p_header_size();
     int sum = pheadersize;
@@ -70,37 +73,49 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
     Element* saveh = get_list_head(q);
     Element* current = get_list_head(q); // make a copy 
 
-    struct event** extracted = malloc(MAX_EVENT_P*sizeof(struct event)); // events to be put in next packet and extracted from the list 
+    //struct event** extracted = malloc(MAX_EVENT_P*sizeof(struct event)); // events to be put in next packet and extracted from the list 
     int i = 0;
-    for(i = 0; i < get_list_size(q) && i < MAX_EVENT_P; i++)
+    for(i = 0; i < MAX_EVENT_P; i++)
     {
-        struct event* ev = (struct event*)get_element_value(current);
-        if(sum + get_description_header_size() + ev->textlen  < BUFSIZE)
-            extracted[i] = ev;
-        else
-            break;
+        if(i < get_list_size(q))
+        {
+            struct event* ev = (struct event*)get_element_value(current);
+            if(sum + get_description_header_size() + ev->textlen  < BUFSIZE)
+                selectedEvts[i] = ev;
+            else
+                break;
 
-        sum += ev->textlen + get_description_header_size();
-        current = get_element_next(current);
-        (*nbevents)++;
+            sum += ev->textlen + get_description_header_size();
+            current = get_element_next(current);
+            (*nbevents)++;
+        }
+        else
+        {
+            selectedEvts[i] = NULL;
+        }
     }
-    printf("Total sum : %d - Number of events: %d \n", sum, i);
+
+    printf("Total sum : %d - Number of events: %d \n", sum, *nbevents);
     set_head_list(q, saveh);
 
     // For now we have an array with the events we'd like to put in the next packet.
     // Add these into the pending ACK Q (buffering them before deleting them as soon as we receive an ACK from the lambda server)
     // create_packet(from list of events?)
-    return extracted;
+    return selectedEvts;
 }
 
-void free_buffer_waiting_events(struct event** ev, List* queue, int nbevents)
+void free_buffer_waiting_events(struct event** ev, List* queue)
 {
-    for(int i = 0; i < nbevents; i++)
+    if(!ev || !queue)
+        return;
+
+    int i = 0;
+    while(i < MAX_EVENT_P && ev[i] != NULL)
     {
         Element* el = find_element_from_value(queue, ev[i]); // ev[i] is the value (event*)
         delete_in_list(queue, el);
-        if(ev[i] != NULL)
-            free(ev[i]);
+        free(ev[i]);
+        i++;
     }
 }
 
@@ -160,7 +175,7 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
         uuid_generate_time(uuid);
 
         unsigned char ida[EVENTID_S];
-        int_to_bytes(ida, id);
+        int_to_bytes(ida, cur->id);
 
         unsigned char ackevent[ACK_S];
         ackevent[0] = (cur->ack == 1) ? 0x1 : 0x0;
@@ -190,63 +205,6 @@ struct pdescription* create_description_struct(struct pdescription* d, int lengt
     return d;
 }
 
-
-struct spacket* create_dummy_packet_struct(struct spacket* p)
-{
-    p->eventdescri = new_list();
-
-    p->version[0] = 0x1;
-    unsigned char myip[SRCIP_S] = {0x7F , 0x0, 0x0, 0x1};
-    memcpy(p->srcip, myip, SRCIP_S);
-    
-    unsigned char srcid[SRCID_S];
-    int_to_bytes(srcid, 100); // id 1
-    memcpy(p->sidentifier, srcid, SRCID_S);
-
-    unsigned char seqn[SEQ_S];
-    int seqNo = rand();
-    int_to_bytes(seqn, seqNo);
-    memcpy(p->seq, seqn, SEQ_S);
-
-    p->nbevents[0] = 0x2;
-
-    
-    unsigned char id1[EVENTID_S];
-    int_to_bytes(id1, 6);
-
-    unsigned char id2[EVENTID_S];
-    int_to_bytes(id2, 8);
-
-    char *descr1 = "number of connection for destination port 8080 on time interval of 10seconds\n";
-    char *descr2 = "number of bytes received on interface 2 over last 20 seconds\n";
-
-    unsigned char uuid1[16]; // here uuid_t is a typdef for char[16]
-    unsigned char uuid2[16];
-    uuid_generate_time(uuid1);
-    uuid_generate_time(uuid2);
-
-    unsigned char ackevent1[ACK_S] = {0x1}; // true 
-    unsigned char ackevent2[ACK_S] = {0x0}; // false 
-
-    struct pdescription *d1 = malloc(sizeof(struct pdescription));
-    struct pdescription *d2 = malloc(sizeof(struct pdescription));
-    if(!d1 || !d2)
-        log_fatal("Could not allocate memory dummy packet", __FILE__, __func__, __LINE__);
-
-    int length1 = get_description_header_size() + strlen(descr1);
-    int length2 = get_description_header_size() + strlen(descr2);
-
-    d1 = create_description_struct(d1, length1, uuid1, descr1, ackevent1, id1);
-    d2 = create_description_struct(d2, length2, uuid2, descr2, ackevent2, id2);
-
-    insert_in_list(p->eventdescri, d1);
-    insert_in_list(p->eventdescri, d2);
-    //insertInLinkedList(p->eventdescri, d1);
-    //insertInLinkedList(p->eventdescri, d2);
-    
-    print_packet(p);
-    return p;
-}
 
 void create_packet_buf(char* buf, struct spacket* p) {
 

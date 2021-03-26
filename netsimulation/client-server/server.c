@@ -18,24 +18,12 @@
 #include "common.h"
 
 /* Must find a scalable solution to parse each packet description according to their ID (event id) */ 
-static int process_description_event1() 
-{
-    return 1;
-}
 
-static int process_description_event2()
+static int process_description_event_id1(struct pdescription* d, unsigned char* buf)
 {
-    return 2;
-}
-
-static int process_description(struct pdescription* d, unsigned char* buf)
-{
-    // memcpy(destination, source, length)
-    memcpy(d->len, buf, DLENGTH_S);
-    memcpy(d->eventid, buf+DLENGTH_S, EVENTID_S);
     memcpy(d->ack, buf+DLENGTH_S+EVENTID_S, ACK_S);
     memcpy(d->uid, buf+DLENGTH_S+EVENTID_S+ACK_S, UID_S);
-
+    
     d->textlen = bytes_to_single_int(d->len) - get_description_header_size();
 
     d->textd = (char*) malloc(d->textlen*sizeof(char));
@@ -91,7 +79,24 @@ static struct spacket* process_packet(unsigned char* buf)
     {
         int dlen = 0;
         struct pdescription *d = malloc(sizeof(struct pdescription));
-        dlen = process_description(d, buf+index);
+        memcpy(d->len, buf+index, DLENGTH_S);
+        memcpy(d->eventid, buf+index+DLENGTH_S, EVENTID_S);
+
+        int eid = bytes_to_single_int(d->eventid);
+        switch(eid)
+        {
+            case 1:
+                dlen = process_description_event_id1(d, buf+index);
+                break;
+            case 2:
+                break;
+            case 3:
+                break;
+            case 4:
+                break;
+            default:
+                log_info("Default id parsing \n");
+        }
     
         index = index + dlen;
         insert_in_list(rp->eventdescri, d);
@@ -113,17 +118,19 @@ int main(int argc, char **argv) {
     char *hostaddrp = ""; /* dotted decimal host addr string */
     int optval; /* flag value for setsockopt */
     int n; /* message byte size */
-    bool responding = true; // FALSE 
+    bool responding = true;
+    float droprate = 0.0;
     /* 
     * check command line arguments 
     */
-    if (argc != 2) 
+    if (argc != 3) 
     {
-    	log_fatal("usage: %s <port>", __FILE__, __func__, __LINE__);
+    	log_fatal("usage: %s <port> <droprate belongs to [0.0;1.0]>", __FILE__, __func__, __LINE__);
         exit(1);
     }
     portno = atoi(argv[1]);
-
+    droprate = atof(argv[2]);
+    printf("[INFO] Listening on port: %d with droprate: %f \n", portno, droprate);
     /* 
     * socket: create the parent socket 
     */
@@ -175,34 +182,34 @@ int main(int argc, char **argv) {
         printf("server received datagram from (%s)\n", hostaddrp);
         printf("server received %d bytes \n", n);
 
-        //print_byte_array(buf, BUFSIZE); 
-        struct spacket* rp = process_packet(buf);
-
-        if(rp)
-        {
-            print_packet(rp);
-        }
-
-        free_packet_struct(rp);
+        
         /* 
          * sendto: sends back a response to the initial sender of the datagram
          */
-
-        
-        if(responding) 
+        float rd = drand48();
+        printf("Picked: %.20f \n", rd);
+        if((droprate < rd) && responding)
         {
-            for(int i = 0; i < 3; i++)
-            {
-                char* response = "ACK\n";
-                  bzero(buf, BUFSIZE); // We use the same buffer so it seems to erase what's inside each time we're done with it
-                  bcopy(response, buf, strlen(response));
+            //print_byte_array(buf, BUFSIZE); 
+            struct spacket* rp = process_packet(buf);
 
-                  printf("Sending back: %s", buf);
-                  n = sendto(sockfd, buf, strlen((char*)buf), 0, 
-                       (struct sockaddr *) &clientaddr, clientlen);
-                  if (n < 0) 
-                    log_error("Could not send response datagram", __func__, __LINE__);
+            if(rp)
+            {
+                print_packet(rp);
             }
+
+            free_packet_struct(rp);
+
+            char* response = "ACK\n";
+            bzero(buf, BUFSIZE); // We use the same buffer so it seems to erase what's inside each time we're done with it
+            bcopy(response, buf, strlen(response));
+
+            printf("Sending back: %s", buf);
+            n = sendto(sockfd, buf, strlen((char*)buf), 0, 
+               (struct sockaddr *) &clientaddr, clientlen);
+            if (n < 0) 
+            log_error("Could not send response datagram", __func__, __LINE__);
+
         }
 
     } // end while server 

@@ -266,8 +266,13 @@ void delete_in_list(List *list, Element* el)
 {
     if (el == NULL)
     {
-        log_error("Structure is NULL", __func__, __LINE__);
+        log_error("Element is NULL", __func__, __LINE__);
         return;
+    }
+
+    if(list == NULL)
+    {
+        log_error("List is NULL", __func__, __LINE__);
     }
 
     if (el == list->head && el == list->tail)
