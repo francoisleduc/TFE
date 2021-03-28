@@ -32,8 +32,8 @@
 #include <net/if.h>
 #include <linux/if_link.h> /* depend on kernel-headers installed */
 
-#include "../common/common_params.h"
-#include "../common/common_user_bpf_xdp.h"
+#include "../dependencies/common/common_params.h"
+#include "../dependencies/common/common_user_bpf_xdp.h"
 
 
 #include "common_kern_user.h" // current directory data structure for records

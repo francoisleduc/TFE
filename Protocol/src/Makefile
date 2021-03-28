@@ -10,10 +10,10 @@ LDFLAGS=-luuid -lpthread
 # CONFIGURATION FILE #
 EXEC=switch
 EXEC2=lambda_server
-
+RLEASE=release
 
 # COMMANDS #
-all: $(EXEC) $(EXEC2)
+all: $(EXEC) $(EXEC2) $(RLEASE)
 $(EXEC): fake_switch.o client.o log.o linkedlist.o common.o
 	$(LD) -o ../netsimulation/$(EXEC) fake_switch.o client.o linkedlist.o log.o common.o $(LDFLAGS)
 $(EXEC2): server.o log.o linkedlist.o common.o
@@ -30,10 +30,11 @@ common.o: common.c common.h
 	$(CC) -c common.c -o common.o $(CFLAGS)
 fake_switch.o: fake_switch.c
 	$(CC) -c fake_switch.c -o fake_switch.o $(CFLAGS)
-
+release:
+	cp -f ../netsimulation/lambda_server ../../XDP-Code/netsimulation
 archive:
 	tar -zcvf $(EXEC).tar.gz Makefile
 clean:
 	rm -rf *.o
 proper:
-	rm ../netsimulation/lambda_server ../netsimulation/switch
+	rm ../netsimulation/lambda_server ../netsimulation/switch ../../XDP-Code/netsimulation/lambda_server
