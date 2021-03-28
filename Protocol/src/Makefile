@@ -8,15 +8,16 @@ CFLAGS=-Wall -Wmissing-prototypes -luuid
 LDFLAGS=-luuid -lpthread
 
 # CONFIGURATION FILE #
-EXEC=fake_switch
-EXEC2=server
-
+EXEC=switch
+EXEC2=lambda_server
 
 
 # COMMANDS #
 all: $(EXEC) $(EXEC2)
 $(EXEC): fake_switch.o client.o log.o linkedlist.o common.o
-	$(LD) -o ../$(EXEC) fake_switch.o client.o linkedlist.o log.o common.o $(LDFLAGS)
+	$(LD) -o ../netsimulation/$(EXEC) fake_switch.o client.o linkedlist.o log.o common.o $(LDFLAGS)
+$(EXEC2): server.o log.o linkedlist.o common.o
+	$(LD) -o ../netsimulation/$(EXEC2) server.o linkedlist.o log.o common.o $(LDFLAGS)
 client.o: client.c client.h
 	$(CC) -c client.c -o client.o $(CFLAGS)
 linkedlist.o: linkedlist.c linkedlist.h
@@ -30,12 +31,9 @@ common.o: common.c common.h
 fake_switch.o: fake_switch.c
 	$(CC) -c fake_switch.c -o fake_switch.o $(CFLAGS)
 
-
 archive:
 	tar -zcvf $(EXEC).tar.gz Makefile
 clean:
 	rm -rf *.o
 proper:
-	rm ../server ../fake_switch
-$(EXEC2): server.o log.o linkedlist.o common.o
-	$(LD) -o ../$(EXEC2) server.o linkedlist.o log.o common.o $(LDFLAGS)
+	rm ../netsimulation/lambda_server ../netsimulation/switch
