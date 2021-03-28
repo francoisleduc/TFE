@@ -3,29 +3,28 @@
 This folder contains the source code of both the lambda server and fake_switch a.k.a client 
 
 ### Utils:
-#### -- LinkedList
+#### -- LinkedList.c_h
 A double linked list implementation 
 
-#### -- Common
+#### -- Common.c_h
 A multitude of functions used both by the client and server 
 
-#### -- Log
+#### -- Log.c_h
 Essentially a log printer 
 
 ### Core:
-#### -- Server
-Lambda server code and parsing 
+#### -- Server.c
+Lambda server code
 
 
-#### -- Client
-All parsing functions of the switch/client
+#### -- Client.c_h
+All parsing functions of the client. It was made that way (compared to server.c) because we'd need to 
+integrate it with the current setup in XDP-Code/
 
 
-#### -- FakeSwitch
+#### -- FakeSwitch.c
 
-Main client loop and argument parsing
-
-
+This is a test client with only a main() with a loop + arguments parsing 
 ## License
 
 LGPL-2.1 License 
