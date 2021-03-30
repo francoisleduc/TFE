@@ -39,8 +39,7 @@ struct pdescription{
     unsigned char eventid[EVENTID_S];
     unsigned char ack[ACK_S];
     unsigned char uid[UID_S];
-    char* textd; // SHOULD BE CHANGED BY AN ARRAY OF BYTES. THIS ARRAY WOULD BE PARSED FOLLOWING A SPECIFIC STRUCTURE PER EVENT ID ! 
-    // For now it is just a string 
+    unsigned char* textd; // Does not have to be text 
     int textlen;
 };
 

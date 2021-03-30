@@ -26,10 +26,9 @@ static int process_description_event_id1(struct pdescription* d, unsigned char* 
     
     d->textlen = bytes_to_single_int(d->len) - get_description_header_size();
 
-    d->textd = (char*) malloc(d->textlen*sizeof(char));
+    d->textd = (unsigned char*) malloc(d->textlen*sizeof(unsigned char));
 
-    memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S+UID_S, d->textlen-1);
-    d->textd[d->textlen-1] = '\0';
+    memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S+UID_S, d->textlen);
     return get_description_header_size() + d->textlen;
 }
 
@@ -70,7 +69,7 @@ static struct spacket* process_packet(unsigned char* buf)
     memcpy(rp->version, buf, VERSION_S);
     memcpy(rp->srcip, buf+VERSION_S, SRCIP_S); // +1
     memcpy(rp->sidentifier, buf+VERSION_S+SRCIP_S, SRCID_S); 
-    memcpy(rp->seq, buf+VERSION_S+SRCIP_S+SRCID_S, SEQ_S); 
+    memcpy(rp->seq, buf+VERSION_S+SRCIP_S+SRCID_S, SEQ_S);
     memcpy(rp->nbevents, buf+VERSION_S+SRCIP_S+SRCID_S+SEQ_S, NBEVENTS_S); 
 
     int index = VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;  

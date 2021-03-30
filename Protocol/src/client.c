@@ -34,7 +34,7 @@ void free_list_event(List* list)
     }   
 }
 
-struct event* make_event(int id, char* textdescription, int ack)
+struct event* make_event(int id, unsigned char* textdescription, int ack, int descrilen)
 {
     struct event* e = malloc(sizeof(struct event));
     if(!e)
@@ -45,11 +45,8 @@ struct event* make_event(int id, char* textdescription, int ack)
 
     e->id = id;
     e->ack = ack;
-    //strcpy(e->textde, textdescription);
     e->textde = textdescription;
-    e->textlen = strlen(textdescription);
-    e->assocSeqNb = -1;
-    e->hasBeenAcked = false;
+    e->textlen = descrilen;
     return e;
 }
 
@@ -170,7 +167,7 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
         if(!d)
             return NULL;
 
-        int length = get_description_header_size() + strlen(cur->textde);
+        int length = get_description_header_size() + cur->textlen;
         unsigned char uuid[16]; // here uuid_t is a typdef for char[16]
         uuid_generate_time(uuid);
 
@@ -179,7 +176,7 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
 
         unsigned char ackevent[ACK_S];
         ackevent[0] = (cur->ack == 1) ? 0x1 : 0x0;
-        d = create_description_struct(d, length, uuid, cur->textde, ackevent, ida);
+        d = create_description_struct(d, length, uuid, cur->textde, ackevent, ida, cur->textlen);
         insert_in_list(p->eventdescri, d);
     }
 
@@ -188,7 +185,7 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
 
 }
 
-struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* uid, char* desc, unsigned char* ack, unsigned char *id)
+struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* uid, unsigned char* desc, unsigned char* ack, unsigned char *id, int descrilen)
 {
     unsigned char len1[DLENGTH_S];
     int_to_bytes(len1, length);
@@ -201,7 +198,7 @@ struct pdescription* create_description_struct(struct pdescription* d, int lengt
     memcpy(d->uid,  uid, UID_S);
     memcpy(d->eventid, id, EVENTID_S);
     d->textd = desc;
-    d->textlen = strlen(desc);
+    d->textlen = descrilen;
     return d;
 }
 

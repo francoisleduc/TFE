@@ -78,8 +78,8 @@ void print_description_struct(struct pdescription *d)
     log_info("UUID: ");
     printf("%s \n", uuid_str);
 
-    log_info("Description additional text: ");
-    printf("%s \n", d->textd);
+    log_info("Description additional bytes: ");
+    print_byte_array(d->textd, d->textlen); 
 
     printf("\n\n");
     return;

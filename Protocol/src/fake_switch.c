@@ -104,7 +104,7 @@ static void* lambda_communication_thread(void* input)
     int i = 0;
     while(t)
     {
-        if(i > 20) // If 20 packets are sent we stop for testing purposes only 
+        if(i > 5) // If 20 packets are sent we stop for testing purposes only 
             break;
         clock_t difference = clock() - before;
         msec = difference * 1000 / CLOCKS_PER_SEC;
@@ -215,15 +215,21 @@ int main(int argc, char **argv) {
     int nb = 10;
     for(int i = 0; i < nb; i++)
     {
-        struct event* newEvent = make_event(1, "My event needs an ack - ACK", 1);
+        unsigned char s[28];
+        memcpy(s, "My event needs an ack - ACK\0", 28);
+        struct event* newEvent = make_event(1, s, 1, 28);
         insert_in_list(eventsQACK, newEvent);
     }
     
+    /*
     for(int i = 0; i < nb/2; i++)
     {
-        struct event* newEvent = make_event(2, "My event does not need to be acknowledged", 0);
+        unsigned char s[42];
+        memcpy(s, "My event does not need to be acknowledged\0", 42);
+        struct event* newEvent = make_event(2, s, 0, 42);
         insert_in_list(eventsQNOACK, newEvent);
     }
+    */
 
     struct args *in = (struct args *)malloc(sizeof(struct args));
     
@@ -254,7 +260,9 @@ int main(int argc, char **argv) {
 
         pthread_mutex_lock(&lock);
         
-        struct event* newEvent = make_event(1, "Added Event - ACK", 1);
+        unsigned char s[18];
+        memcpy(s, "Added Event - ACK\0", 18);
+        struct event* newEvent = make_event(1, s, 1, 18);
         insert_in_list(eventsQACK, newEvent);
         
         pthread_mutex_unlock(&lock);
