@@ -47,7 +47,7 @@ BPF_CFLAGS ?= -I$(LIBBPF_DIR)/build/usr/include/ -I../headers/
 
 LIBS = -l:libbpf.a -lelf $(USER_LIBS)
 
-all: llvm-check $(USER_TARGETS) $(XDP_OBJ) $(COPY_LOADER) $(COPY_STATS)
+all: llvm-check $(USER_TARGETS) $(XDP_OBJ) $(COPY_LOADER) $(COPY_STATS) $(DUPLICATE)
 
 .PHONY: clean $(CLANG) $(LLC)
 
@@ -58,6 +58,12 @@ clean:
 	rm -f $(USER_TARGETS) $(XDP_OBJ) $(USER_OBJ) $(COPY_LOADER) $(COPY_STATS)
 	rm -f *.ll
 	rm -f *~
+
+copynet:
+	cp -f xdp_load_and_stats ../netsimulation/
+	cp -f xdp_prog_kern.o ../netsimulation/
+	cp -f xdp_prog_kern.ll ../netsimulation/
+
 
 ifdef COPY_LOADER
 $(COPY_LOADER): $(LOADER_DIR)/${COPY_LOADER:=.c} $(COMMON_H)
@@ -107,7 +113,7 @@ $(USER_TARGETS): %: %.c  $(OBJECT_LIBBPF) Makefile $(COMMON_MK) $(COMMON_OBJS) $
 	$(CC) -Wall $(CFLAGS) $(LDFLAGS) -o $@ $(COMMON_OBJS) \
 	 $< $(LIBS)
 
-$(XDP_OBJ): %.o: %.c  Makefile $(COMMON_MK) $(KERN_USER_H) $(EXTRA_DEPS) $(OBJECT_LIBBPF)
+$(XDP_OBJ): %.o: %.c  Makefile $(COMMON_MK) $(KERN_USER_H) $(EXTRA_DEPS) $(OBJECT_LIBBPF) $(DUPLICATE)
 	$(CLANG) -S \
 	    -target bpf \
 	    -D __BPF_TRACING__ \

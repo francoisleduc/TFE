@@ -57,10 +57,10 @@ int  xdp_stats1_func(struct xdp_md *ctx)
 
 	
 	unsigned int payload_size;
-    struct ethhdr *eth = data;
-    unsigned char *payload;
-    unsigned int payload_offset;
-    struct iphdr *ip;
+	struct ethhdr *eth = data;
+	unsigned char *payload;
+	unsigned int payload_offset;
+	struct iphdr *ip;
 	struct tcphdr *tcp;
 
 	eth = data;
@@ -68,39 +68,39 @@ int  xdp_stats1_func(struct xdp_md *ctx)
 	if ((void *)eth + sizeof(*eth) > data_end)
         return XDP_PASS;
 
-    ip = data + sizeof(*eth);
-    if ((void *)ip + sizeof(*ip) > data_end)
-        return XDP_PASS;
+        ip = data + sizeof(*eth);
+        if ((void *)ip + sizeof(*ip) > data_end)
+            return XDP_PASS;
 
-    if (ip->protocol != IPPROTO_TCP)
-        return XDP_PASS;
+        if (ip->protocol != IPPROTO_TCP)
+            return XDP_PASS;
 
-    tcp = (void *)ip + sizeof(*ip);
-    if ((void *)tcp + sizeof(*tcp) > data_end)
-        return XDP_PASS;
-
-
-    payload_size = bpf_ntohs(ip->tot_len) - (tcp->doff*4) - (ip->ihl*4); // IP TOT PACKET - tcp header len - ip header len 
-    payload_offset = ETH_LEN + (ip->ihl*4) + (tcp->doff*4); // ETH_LEN + ip header len + tcp header len 
-    bpf_printk("payload_size %u - , proto: %u\n", payload_size, bpf_ntohs(eth->h_proto));
+        tcp = (void *)ip + sizeof(*ip);
+        if ((void *)tcp + sizeof(*tcp) > data_end)
+            return XDP_PASS;
 
 
-    payload = (unsigned char *)tcp + sizeof(*tcp);
-    if ((void *)payload + payload_size > data_end)
-    	return XDP_PASS;
+        payload_size = bpf_ntohs(ip->tot_len) - (tcp->doff*4) - (ip->ihl*4); // IP TOT PACKET - tcp header len - ip header len 
+        payload_offset = ETH_LEN + (ip->ihl*4) + (tcp->doff*4); // ETH_LEN + ip header len + tcp header len 
+        bpf_printk("payload_size %u - , proto: %u\n", payload_size, bpf_ntohs(eth->h_proto));
 
-    unsigned char *byte = (unsigned char *)eth + FLAG_BYTE_OFFSET_ETH;
-    if((void* )byte + 1 > data_end)
-    	return XDP_PASS;
+
+        payload = (unsigned char *)tcp + sizeof(*tcp);
+        if ((void *)payload + payload_size > data_end)
+    	    return XDP_PASS;
+
+        unsigned char *byte = (unsigned char *)eth + FLAG_BYTE_OFFSET_ETH;
+        if((void* )byte + 1 > data_end)
+    	    return XDP_PASS;
 
 
     // fourth bit starting from the right with LSB 0 index
 	if((*byte & (1 << 4)) && (*byte & (1 << 1))) { // check if fourth bit of FLAG_BYTE is set to 1 or not (SYN + ACK FLAG)
 		rec->rx_tcp_open = rec->rx_tcp_open + 1;
 		bpf_printk("Matching bits SYN+ACK\n");
-    }
+        }
 
-    rec->rx_tcp_payload = rec->rx_tcp_payload + payload_size;
+        rec->rx_tcp_payload = rec->rx_tcp_payload + payload_size;
 
 	return XDP_PASS;
 }
