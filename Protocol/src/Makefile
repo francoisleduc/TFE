@@ -4,8 +4,8 @@ LD=gcc
 AR=ar
 
 # FLAGS #
-CFLAGS=-Wall -Wmissing-prototypes -luuid
-LDFLAGS=-luuid -lpthread
+CFLAGS=-Wall -Wmissing-prototypes
+LDFLAGS=-lpthread
 
 # CONFIGURATION FILE #
 EXEC=switch
@@ -18,6 +18,7 @@ $(EXEC): fake_switch.o client.o log.o linkedlist.o common.o
 	$(LD) -o ../netsimulation/$(EXEC) fake_switch.o client.o linkedlist.o log.o common.o $(LDFLAGS)
 $(EXEC2): server.o log.o linkedlist.o common.o
 	$(LD) -o ../netsimulation/$(EXEC2) server.o linkedlist.o log.o common.o $(LDFLAGS)
+	$(MAKE) $(RLEASE)
 client.o: client.c client.h
 	$(CC) -c client.c -o client.o $(CFLAGS)
 linkedlist.o: linkedlist.c linkedlist.h
@@ -38,3 +39,13 @@ clean:
 	rm -rf *.o
 proper:
 	rm ../netsimulation/lambda_server ../netsimulation/switch ../../XDP-Code/netsimulation/lambda_server
+push:
+	cp -f log.c ../../XDP-Code/protocol
+	cp -f log.h ../../XDP-Code/protocol
+	cp -f linkedlist.c ../../XDP-Code/protocol
+	cp -f linkedlist.h ../../XDP-Code/protocol
+	cp -f client.c ../../XDP-Code/protocol
+	cp -f client.h ../../XDP-Code/protocol
+	cp -f common.c ../../XDP-Code/protocol
+	cp -f common.h ../../XDP-Code/protocol
+

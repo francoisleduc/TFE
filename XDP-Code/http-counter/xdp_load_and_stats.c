@@ -38,6 +38,15 @@
 
 #include "common_kern_user.h" // current directory data structure for records
 
+#include "../protocol/common.h"
+#include "../protocol/log.h"
+#include "../protocol/client.h"
+
+extern List* eventsQACK;
+extern List* eventsQNOACK;
+
+
+
 static const char *default_filename = "xdp_prog_kern.o";
 static const char *default_progsec = "xdp_stats1";
 
@@ -160,7 +169,7 @@ static void stats_print(struct stats_record *stats_rec)
 		" %'11lld bytes "
 		" %'11lld Nb. SYN+ACK "
 		" %'11lld Cumulativ. tcp payload bytes ";
-	const char *action = "PASS"; // print only XDP_PASS action to have smaller print stat statement 
+	const char *action = "PASS"; // print only XDP_PASS action to have smaller print statistic statement 
 
 	rec  = &stats_rec->stats[0];
 

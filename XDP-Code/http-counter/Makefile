@@ -6,6 +6,7 @@ USER_TARGETS := xdp_load_and_stats
 
 LIBBPF_DIR = ../dependencies/libbpf/src/
 COMMON_DIR = ../dependencies/common/
+PROTOCOL_DIR = ../protocol/
 
 include $(COMMON_DIR)/common.mk
 
