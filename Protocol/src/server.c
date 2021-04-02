@@ -17,18 +17,19 @@
 
 #include "common.h"
 
-/* Must find a scalable solution to parse each packet description according to their ID (event id) */ 
+struct respacket{
+    /* Common field of event to be sent on the network */
+    struct spacket *parsed;
+    int response;
+};
+
 
 static int process_description_event_id1(struct pdescription* d, unsigned char* buf)
 {
-    memcpy(d->ack, buf+DLENGTH_S+EVENTID_S, ACK_S);
-    memcpy(d->uid, buf+DLENGTH_S+EVENTID_S+ACK_S, UID_S);
-    
+    memcpy(d->ack, buf+DLENGTH_S+EVENTID_S, ACK_S);    
     d->textlen = bytes_to_single_int(d->len) - get_description_header_size();
-
     d->textd = (unsigned char*) malloc(d->textlen*sizeof(unsigned char));
-
-    memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S+UID_S, d->textlen);
+    memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S, d->textlen);
     return get_description_header_size() + d->textlen;
 }
 
@@ -54,11 +55,11 @@ static void free_packet_struct(struct spacket* p)
     }
 }
 
-static struct spacket* process_packet(unsigned char* buf)
+static struct respacket* process_packet(unsigned char* buf)
 {
     struct spacket* rp = malloc(sizeof(struct spacket));
     if(!rp)
-    return NULL;
+        return NULL;
 
     rp->eventdescri = new_list();
 
@@ -74,6 +75,7 @@ static struct spacket* process_packet(unsigned char* buf)
 
     int index = VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;  
 
+    int hasToBeAck = 0;
     for(int i = 0; i < (int) rp->nbevents[0]; i++)
     {
         int dlen = 0;
@@ -86,12 +88,16 @@ static struct spacket* process_packet(unsigned char* buf)
         {
             case 1:
                 dlen = process_description_event_id1(d, buf+index);
+                hasToBeAck = 1;
                 break;
             case 2:
+                //dlen = process_description_event_id2(d, buf+index); 
                 break;
             case 3:
+                // id 3
                 break;
             case 4:
+                // id 4 and so on 
                 break;
             default:
                 log_info("Default id parsing \n");
@@ -101,9 +107,15 @@ static struct spacket* process_packet(unsigned char* buf)
         insert_in_list(rp->eventdescri, d);
     }
 
+    struct respacket* rs = malloc(sizeof(struct respacket));
+    if(rs)
+    {
+        rs->parsed = rp;
+        rs->response = hasToBeAck;
+    }
     log_info("Processed the whole packet \n");
 
-    return rp;
+    return rs;
 }
 
 
@@ -119,16 +131,18 @@ int main(int argc, char **argv) {
     int n; /* message byte size */
     bool responding = true;
     float droprate = 0.0;
+    int nbClients = 0;
     /* 
     * check command line arguments 
     */
-    if (argc != 3) 
+    if (argc != 4) 
     {
-    	log_fatal("usage: %s <port> <droprate belongs to [0.0;1.0]>", __FILE__, __func__, __LINE__);
+    	log_fatal("usage: %s <port> <droprate> <max client nb>", __FILE__, __func__, __LINE__);
         exit(1);
     }
     portno = atoi(argv[1]);
     droprate = atof(argv[2]);
+    nbClients =  atoi(argv[3]);
     printf("[INFO] Listening on port: %d with droprate: %f \n", portno, droprate);
     /* 
     * socket: create the parent socket 
@@ -163,6 +177,9 @@ int main(int argc, char **argv) {
     * main loop: wait for a datagram, then send ACK 
     */
     clientlen = sizeof(clientaddr);
+    int seqPerSwitchId[nbClients];
+    bzero(seqPerSwitchId, nbClients);
+
     while (1) {
 
         /*
@@ -186,29 +203,34 @@ int main(int argc, char **argv) {
          * sendto: sends back a response to the initial sender of the datagram
          */
         float rd = drand48();
-        printf("Picked: %.20f \n", rd);
         if((droprate < rd) && responding)
         {
-            //print_byte_array(buf, BUFSIZE); 
-            struct spacket* rp = process_packet(buf);
-
-            if(rp)
+            struct respacket* rp = process_packet(buf);
+            if(!rp)
             {
-                print_packet(rp);
+                return -1;
             }
 
-            free_packet_struct(rp);
-
+            print_packet(rp->parsed);
+            int receivedId = bytes_to_single_int(rp->parsed->sidentifier);
+            int receivedSeq = bytes_to_single_int(rp->parsed->seq);
             char* response = "ACK\n";
             bzero(buf, BUFSIZE); // We use the same buffer so it seems to erase what's inside each time we're done with it
             bcopy(response, buf, strlen(response));
 
-            printf("Sending back: %s", buf);
-            n = sendto(sockfd, buf, strlen((char*)buf), 0, 
-               (struct sockaddr *) &clientaddr, clientlen);
-            if (n < 0) 
-            log_error("Could not send response datagram", __func__, __LINE__);
+            if(rp->response == 1) // Requires an acknowledgment
+            {
+                if(seqPerSwitchId[receivedId] == receivedSeq) // IF SEQUENCE NUMBER MATCH - INCREMENT EXPECTED SQN BY 1
+                    seqPerSwitchId[receivedId] = (seqPerSwitchId[receivedId] % INT_MAX) + 1;
 
+                printf("Sending back: %s", buf);
+                n = sendto(sockfd, buf, strlen((char*)buf), 0, (struct sockaddr *) &clientaddr, clientlen);
+                if (n < 0) 
+                    log_error("Could not send response datagram", __func__, __LINE__);
+            }
+            
+            free_packet_struct(rp->parsed);
+            free(rp);
         }
 
     } // end while server 

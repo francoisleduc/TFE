@@ -95,9 +95,6 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
     printf("Total sum : %d - Number of events: %d \n", sum, *nbevents);
     set_head_list(q, saveh);
 
-    // For now we have an array with the events we'd like to put in the next packet.
-    // Add these into the pending ACK Q (buffering them before deleting them as soon as we receive an ACK from the lambda server)
-    // create_packet(from list of events?)
     return selectedEvts;
 }
 
@@ -136,7 +133,7 @@ void free_packet_struct(struct spacket* p)
 }
 
 
-struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* srcip, unsigned char* version, int nbevents)
+struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* srcip, unsigned char* version, int nbevents, int seq)
 {
     struct spacket* p = malloc(sizeof(struct spacket));
     if(!p)
@@ -154,8 +151,7 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
 
 
     unsigned char seqn[SEQ_S];
-    int seqNo = rand();
-    int_to_bytes(seqn, seqNo);
+    int_to_bytes(seqn, seq);
     memcpy(p->seq, seqn, SEQ_S);
 
 
@@ -168,24 +164,22 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
             return NULL;
 
         int length = get_description_header_size() + cur->textlen;
-        unsigned char uuid[16]; // here uuid_t is a typdef for char[16]
-        uuid_generate_time(uuid);
 
         unsigned char ida[EVENTID_S];
         int_to_bytes(ida, cur->id);
 
         unsigned char ackevent[ACK_S];
         ackevent[0] = (cur->ack == 1) ? 0x1 : 0x0;
-        d = create_description_struct(d, length, uuid, cur->textde, ackevent, ida, cur->textlen);
+        d = create_description_struct(d, length, cur->textde, ackevent, ida, cur->textlen);
         insert_in_list(p->eventdescri, d);
     }
 
-    print_packet(p);
+    //print_packet(p);
     return p;
 
 }
 
-struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* uid, unsigned char* desc, unsigned char* ack, unsigned char *id, int descrilen)
+struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* desc, unsigned char* ack, unsigned char *id, int descrilen)
 {
     unsigned char len1[DLENGTH_S];
     int_to_bytes(len1, length);
@@ -195,7 +189,6 @@ struct pdescription* create_description_struct(struct pdescription* d, int lengt
 
     memcpy(d->len, len1, DLENGTH_S);
     memcpy(d->ack, ack, ACK_S);
-    memcpy(d->uid,  uid, UID_S);
     memcpy(d->eventid, id, EVENTID_S);
     d->textd = desc;
     d->textlen = descrilen;
@@ -233,8 +226,6 @@ void create_packet_buf(char* buf, struct spacket* p) {
         index = index + EVENTID_S;
         memcpy(buf+index, cpd->ack, ACK_S);
         index = index + ACK_S;
-        memcpy(buf+index, cpd->uid, UID_S);
-        index = index + UID_S;
         memcpy(buf+index, cpd->textd, cpd->textlen);
         index = index + cpd->textlen;
         current = get_element_next(current);

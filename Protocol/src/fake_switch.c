@@ -9,15 +9,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <fcntl.h>
 #include <netdb.h> 
 
 
 #include <errno.h>
-
-
 #include <time.h>
-//#include <ctype.h>
 #include <pthread.h>  // pthread 
 #include <fcntl.h> // IO rcv()
 
@@ -30,8 +26,8 @@ extern List* eventsQNOACK;
 
 
 pthread_mutex_t lock;
-
 bool terminated = false;
+int seqNB = 0;
 
 struct args {
     unsigned char myip[SRCIP_S];
@@ -44,18 +40,18 @@ struct args {
 
 
 static int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
-    struct event** selectedEvts, socklen_t serverlen)
+    struct event** selectedEvts, socklen_t serverlen, bool tag)
 {
 
     int n = 0;
     int nbevents = 0;
     
     // Send the next packet 
-    selectedEvts = organize_packet(eventsQACK, eventsQNOACK, true, &nbevents, selectedEvts); // selected events, true means we focus on ACK Queue only
+    selectedEvts = organize_packet(eventsQACK, eventsQNOACK, tag, &nbevents, selectedEvts); // selected events, true means we focus on ACK Queue only
     // make buf from packet
     if(selectedEvts) // If there is no event to send on the line then just ignore making a packet 
     {
-        pts = create_packet_struct(selectedEvts, input->identifierNumber, input->myip , input->version, nbevents);
+        pts = create_packet_struct(selectedEvts, input->identifierNumber, input->myip , input->version, nbevents, seqNB);
         // Send this packet 
         create_packet_buf(input->buf, pts);
         free_packet_struct(pts); // free last packet structure 
@@ -65,6 +61,9 @@ static int send_new(struct spacket* pts, struct args* input, pthread_mutex_t loc
         {
             log_error("Could not send datagram", __func__, __LINE__);
         }
+        else
+            seqNB = (seqNB % INT_MAX) + 1;
+
         // Should release the lock here 
     }
     else
@@ -82,14 +81,15 @@ static void* lambda_communication_thread(void* input)
     bool t = true;
     int nbevents = 0;
 
-    int msec = 0, trigger = 500; /* 500ms */
-    clock_t before = clock(); // start timer for the first packet 
+    int msec = 0, trigger1 = 500, trigger2 = 1000; /* 500ms */ /* and */ /* 1000ms */
+    clock_t before1 = clock();
+    clock_t before2 = clock();
     struct spacket* pts = NULL;
     struct event** selectedEvts = malloc(MAX_EVENT_P*sizeof(struct event));
 
     bzero(((struct args*)input)->buf, BUFSIZE);
-    nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen);
-    before = clock();
+    nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
+    before1 = clock();
     // Should release the lock here 
 
 
@@ -101,14 +101,11 @@ static void* lambda_communication_thread(void* input)
     fcntl(((struct args*)input)->sockfd, F_SETFL, flags);
 
 
-    int i = 0;
     while(t)
     {
-        if(i > 5) // If 20 packets are sent we stop for testing purposes only 
-            break;
-        clock_t difference = clock() - before;
-        msec = difference * 1000 / CLOCKS_PER_SEC;
-        if(msec > trigger && nbevents > 0)
+        clock_t difference1 = clock() - before1;
+        msec = difference1 * 1000 / CLOCKS_PER_SEC;
+        if(msec > trigger1 && nbevents > 0)
         {
             // Resend because timer expired and still did not receive an ACK for the last packet 
             log_info("Timer alert: Retransmission of last packet \n");
@@ -120,19 +117,29 @@ static void* lambda_communication_thread(void* input)
             }
             else
             {
-                before = clock(); // reset timer 
+                before1 = clock(); // reset timer 
             }
         }
 
-        if(msec > trigger && nbevents == 0)
+        if(msec > trigger1 && nbevents == 0)
         {
             // send new 
-            i++;
             log_info("Timer alert: Sending now because queue was empty last time \n");
-            nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen);
-            before = clock();
+            nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
+            before1 = clock();
         }
 
+
+        // Here we check if the events that don't need an ACK can be sent depending on their own timer (which is most likely to be different from the previous one)
+        clock_t difference2 = clock() - before2;
+        msec = difference2 * 1000 / CLOCKS_PER_SEC;
+        if(msec > trigger2)
+        {
+            log_info("Timer alert: Sending from non essential queue \n");
+            nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, false);
+            before2 = clock();
+        }
+        
         /* print the server's reply */
         n = recvfrom(((struct args*)input)->sockfd, ((struct args*)input)->buf, BUFSIZE, O_NONBLOCK, (struct sockaddr *)&(((struct args*)input)->serveraddr), &serverlen);
         if (n > 0 && n < 1024)
@@ -149,8 +156,11 @@ static void* lambda_communication_thread(void* input)
                 printf("Echo from server: %s \n", ((struct args*)input)->buf);
                 log_info("Acknowledgment received: sending new packet \n");
                 bzero(((struct args*)input)->buf, BUFSIZE);
-                nbevents = send_new(pts,(struct args*) input, lock, selectedEvts, serverlen);
-                before = clock();
+
+                send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, false);
+                nbevents = send_new(pts,(struct args*) input, lock, selectedEvts, serverlen, true);
+                before1 = clock();
+                before2 = clock();
             }
         }
     }
