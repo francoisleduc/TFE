@@ -40,8 +40,14 @@ update every 2seconds with a refresh of what's been captured on that interface.
 
 Sending pings or getting data from h1 will be captured
 
-![stack Overflow](https://imgur.com/Hik4EeC.jpg)
+![Example](https://imgur.com/Hik4EeC.jpg)
 
+
+You can also access bpf_printk() logs used for debugging or extra information
+
+```sh
+sudo cat /sys/kernel/debug/tracing/trace_pipe 
+```
 
 ## License
 
