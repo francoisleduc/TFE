@@ -23,6 +23,11 @@ struct config {
 	__u16 xsk_bind_flags;
 	int xsk_if_queue;
 	bool xsk_poll_mode;
+
+	/* Network related stuff */
+	char *ipstr;
+	int deviceid;
+	int serverport;
 };
 
 /* Defined in common_params.o */

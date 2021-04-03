@@ -13,6 +13,44 @@
 
 List* eventsQACK = NULL;
 List* eventsQNOACK = NULL;
+pthread_mutex_t lock;
+bool terminated = false;
+int seqNB = 1;
+
+
+void free_buffer_waiting_events(struct event** ev, List* queue)
+{
+    if(!ev || !queue)
+        return;
+
+    int i = 0;
+    while(i < MAX_EVENT_P && ev[i] != NULL)
+    {
+        Element* el = find_element_from_value(queue, ev[i]); // ev[i] is the value (event*)
+        delete_in_list(queue, el);
+        free(ev[i]);
+        i++;
+    }
+}
+
+
+void free_packet_struct(struct spacket* p)
+{
+    if(p)
+    {
+        Element* curr = get_list_head(p->eventdescri);
+        while (curr != NULL)
+        {
+            struct pdescription *d = get_element_value(curr);
+            if(d)
+                free(d);
+
+            curr = get_element_next(curr);
+        }
+        free_list(p->eventdescri);
+        free(p);
+    }
+}
 
 
 
@@ -97,39 +135,8 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
     return selectedEvts;
 }
 
-void free_buffer_waiting_events(struct event** ev, List* queue)
-{
-    if(!ev || !queue)
-        return;
-
-    int i = 0;
-    while(i < MAX_EVENT_P && ev[i] != NULL)
-    {
-        Element* el = find_element_from_value(queue, ev[i]); // ev[i] is the value (event*)
-        delete_in_list(queue, el);
-        free(ev[i]);
-        i++;
-    }
-}
 
 
-void free_packet_struct(struct spacket* p)
-{
-    if(p)
-    {
-        Element* curr = get_list_head(p->eventdescri);
-        while (curr != NULL)
-        {
-            struct pdescription *d = get_element_value(curr);
-            if(d)
-                free(d);
-
-            curr = get_element_next(curr);
-        }
-        free_list(p->eventdescri);
-        free(p);
-    }
-}
 
 
 struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* srcip, unsigned char* version, int nbevents, int seq)
@@ -233,3 +240,37 @@ void create_packet_buf(char* buf, struct spacket* p) {
 }
 
 
+int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
+    struct event** selectedEvts, socklen_t serverlen, bool tag)
+{
+
+    int n = 0;
+    int nbevents = 0;
+    
+    // Send the next packet 
+    selectedEvts = organize_packet(eventsQACK, eventsQNOACK, tag, &nbevents, selectedEvts); // selected events, true means we focus on ACK Queue only
+    // make buf from packet
+    if(selectedEvts) // If there is no event to send on the line then just ignore making a packet 
+    {
+        pts = create_packet_struct(selectedEvts, input->identifierNumber, input->myip , input->version, nbevents, seqNB);
+        // Send this packet 
+        create_packet_buf(input->buf, pts);
+        free_packet_struct(pts); // free last packet structure 
+        serverlen = sizeof(input->serveraddr);
+        n = sendto(input->sockfd, (const char*) input->buf, BUFSIZE, 0, (struct sockaddr *)&(input->serveraddr), serverlen);
+        if (n < 0)
+        {
+            log_error("Could not send datagram", __func__, __LINE__);
+        }
+        else
+            seqNB = (seqNB % INT_MAX) + 1;
+        // Should release the lock here 
+    }
+    else
+    {
+        //log_info("Send new packets from Q but no events is available \n");
+    }
+
+    pthread_mutex_unlock(&lock);
+    return nbevents;
+}

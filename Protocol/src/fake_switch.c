@@ -6,16 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <netdb.h> 
 
-
-#include <errno.h>
-#include <time.h>
-#include <pthread.h>  // pthread 
-#include <fcntl.h> // IO rcv()
 
 #include "common.h"
 #include "log.h"
@@ -24,54 +16,9 @@
 extern List* eventsQACK;
 extern List* eventsQNOACK;
 
-
-pthread_mutex_t lock;
-bool terminated = false;
-int seqNB = 0;
-
-struct args {
-    unsigned char myip[SRCIP_S];
-    char buf[BUFSIZE];
-    int identifierNumber;
-    unsigned char version[VERSION_S];
-    int sockfd;
-    struct sockaddr_in serveraddr;
-};
-
-
-static int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
-    struct event** selectedEvts, socklen_t serverlen, bool tag)
-{
-
-    int n = 0;
-    int nbevents = 0;
-    
-    // Send the next packet 
-    selectedEvts = organize_packet(eventsQACK, eventsQNOACK, tag, &nbevents, selectedEvts); // selected events, true means we focus on ACK Queue only
-    // make buf from packet
-    if(selectedEvts) // If there is no event to send on the line then just ignore making a packet 
-    {
-        pts = create_packet_struct(selectedEvts, input->identifierNumber, input->myip , input->version, nbevents, seqNB);
-        // Send this packet 
-        create_packet_buf(input->buf, pts);
-        free_packet_struct(pts); // free last packet structure 
-        serverlen = sizeof(input->serveraddr);
-        n = sendto(input->sockfd, (const char*) input->buf, BUFSIZE, 0, (struct sockaddr *)&(input->serveraddr), serverlen);
-        if (n < 0)
-        {
-            log_error("Could not send datagram", __func__, __LINE__);
-        }
-        else
-            seqNB = (seqNB % INT_MAX) + 1;
-
-        // Should release the lock here 
-    }
-    else
-        log_info("Send new packets from Q but no events is available \n");
-
-    pthread_mutex_unlock(&lock);
-    return nbevents;
-}
+extern pthread_mutex_t lock;
+extern bool terminated;
+extern int seqNB;
 
 
 static void* lambda_communication_thread(void* input)
@@ -82,16 +29,15 @@ static void* lambda_communication_thread(void* input)
     int nbevents = 0;
 
     int msec = 0, trigger1 = 500, trigger2 = 1000; /* 500ms */ /* and */ /* 1000ms */
-    clock_t before1 = clock();
-    clock_t before2 = clock();
+    clock_t before1 = clock(); // associated to trigger1
+    clock_t before2 = clock(); // associated to trigger2
+
     struct spacket* pts = NULL;
     struct event** selectedEvts = malloc(MAX_EVENT_P*sizeof(struct event));
 
     bzero(((struct args*)input)->buf, BUFSIZE);
     nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
     before1 = clock();
-    // Should release the lock here 
-
 
     log_info("Setting flags \n");
 
@@ -99,7 +45,6 @@ static void* lambda_communication_thread(void* input)
     int flags = fcntl(((struct args*)input)->sockfd, F_GETFL);
     flags |= O_NONBLOCK;
     fcntl(((struct args*)input)->sockfd, F_SETFL, flags);
-
 
     while(t)
     {
@@ -168,7 +113,7 @@ static void* lambda_communication_thread(void* input)
     free(selectedEvts);
     free((struct args*)input);
     terminated = true;
-    pthread_detach(pthread_self());
+    pthread_detach(pthread_self()); // To avoid memory leaks 
     pthread_exit(NULL);
 }
 
@@ -216,12 +161,15 @@ int main(int argc, char **argv) {
     /* send the message to the server */
     
     /* Create a fake list of events to be sent periodically to the lambda server */
-    unsigned char myip[SRCIP_S] = {0x7F , 0x0, 0x0, 0x1}; // this should be from a config file for each device 
+    unsigned char myip[SRCIP_S] = {0x7F, 0x0, 0x0, 0x1}; // this should be from a config file for each device 
     int identifierNumber = 210; // same 210 was taken as an example but should correspond to some kind of mapping id -> (device name, interface)
     unsigned char version[VERSION_S] = {0x1}; // same v1.0
 
     eventsQACK = new_list();
     eventsQNOACK = new_list();
+    
+
+    /**** Do not to include in XDP ****/
     int nb = 10;
     for(int i = 0; i < nb; i++)
     {
@@ -241,6 +189,9 @@ int main(int argc, char **argv) {
     }
     */
 
+    /*** End of do not include in XDP ***/
+
+
     struct args *in = (struct args *)malloc(sizeof(struct args));
     
     in->sockfd = sockfd;
@@ -259,6 +210,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+
+    /* Do not include in XDP */
     while(1)
     {
         /* This loop plays the role of the polling system on the switch which is responsible every x miliseconds to check if conditions
@@ -280,6 +233,7 @@ int main(int argc, char **argv) {
         if(terminated)
             break;
     }
+    /* End of do not include in XDP */
 
     free_list_event(eventsQACK);
     free_list_event(eventsQNOACK);

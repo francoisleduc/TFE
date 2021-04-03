@@ -43,14 +43,13 @@ void parse_cmdline_args(int argc, char **argv,
 	struct option *long_options;
 	int longindex = 0;
 	int opt;
-
 	if (option_wrappers_to_options(options_wrapper, &long_options)) {
 		fprintf(stderr, "Unable to malloc()\n");
 		exit(EXIT_FAIL_OPTION);
 	}
 
 	/* Parse commands line args */
-	while ((opt = getopt_long(argc, argv, "hd:F",
+	while ((opt = getopt_long(argc, argv, "p:a:n:hd:F",
 				  long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'd':
@@ -67,6 +66,23 @@ void parse_cmdline_args(int argc, char **argv,
 					errno, strerror(errno));
 				goto error;
 			}
+			break;
+		case 'a':
+			cfg->ipstr = malloc(16*sizeof(char));
+			if(strlen(optarg) > 15)
+			{
+				fprintf(stderr,
+					"ERR: Length of IP string format too long\n");
+				goto error;
+			}
+			strncpy(cfg->ipstr, optarg, strlen(optarg));
+			cfg->ipstr[strlen(optarg)] = '\0';
+			break;
+		case 'n':
+			cfg->deviceid = atoi(optarg);
+			break;
+		case 'p':
+			cfg->serverport = atoi(optarg);
 			break;
 		case 'F':
 			cfg->xdp_flags &= ~XDP_FLAGS_UPDATE_IF_NOEXIST;
