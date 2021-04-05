@@ -29,6 +29,7 @@ void free_buffer_waiting_events(struct event** ev, List* queue)
         Element* el = find_element_from_value(queue, ev[i]); // ev[i] is the value (event*)
         delete_in_list(queue, el);
         free(ev[i]);
+        ev[i] = NULL;
         i++;
     }
 }
@@ -88,7 +89,7 @@ struct event* make_event(int id, unsigned char* textdescription, int ack, int de
 }
 
 // returns an array of event* 
-struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int* nbevents, struct event** selectedEvts)
+struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int* nbevents, struct event** selected)
 {
     List* q;
     *nbevents = 0;
@@ -107,7 +108,6 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
     Element* saveh = get_list_head(q);
     Element* current = get_list_head(q); // make a copy 
 
-    //struct event** extracted = malloc(MAX_EVENT_P*sizeof(struct event)); // events to be put in next packet and extracted from the list 
     int i = 0;
     for(i = 0; i < MAX_EVENT_P; i++)
     {
@@ -115,7 +115,7 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
         {
             struct event* ev = (struct event*)get_element_value(current);
             if(sum + get_description_header_size() + ev->textlen  < BUFSIZE)
-                selectedEvts[i] = ev;
+                selected[i] = ev;
             else
                 break;
 
@@ -123,16 +123,17 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
             current = get_element_next(current);
             (*nbevents)++;
         }
-        else
-        {
-            selectedEvts[i] = NULL;
-        }
+    }
+
+    for(int x = i; i < MAX_EVENT_P; x++)
+    {
+        selected[i] = NULL;
     }
 
     printf("Total sum : %d - Number of events: %d \n", sum, *nbevents);
     set_head_list(q, saveh);
 
-    return selectedEvts;
+    return selected;
 }
 
 
@@ -206,7 +207,7 @@ void create_packet_buf(char* buf, struct spacket* p) {
 
     // memcpy(destination, source, length)
     if(!p)
-    	return;
+        return;
     memcpy(buf, p->version, VERSION_S);
     memcpy(buf+VERSION_S, p->srcip, SRCIP_S); // 1
     memcpy(buf+VERSION_S+SRCIP_S,  p->sidentifier, SRCID_S);
@@ -241,29 +242,37 @@ void create_packet_buf(char* buf, struct spacket* p) {
 
 
 int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
-    struct event** selectedEvts, socklen_t serverlen, bool tag)
+    struct event** selected, socklen_t serverlen, bool tag)
 {
 
+    char* b;
+    if(tag)
+        b = input->buf;
+    else
+        b = input->bufSecondary;
+
+    pthread_mutex_lock(&lock);
     int n = 0;
     int nbevents = 0;
     
     // Send the next packet 
-    selectedEvts = organize_packet(eventsQACK, eventsQNOACK, tag, &nbevents, selectedEvts); // selected events, true means we focus on ACK Queue only
+    selected = organize_packet(eventsQACK, eventsQNOACK, tag, &nbevents, selected); // selected events, true means we focus on ACK Queue only
     // make buf from packet
-    if(selectedEvts) // If there is no event to send on the line then just ignore making a packet 
+    if(selected) // If there is no event to send on the line then just ignore making a packet 
     {
-        pts = create_packet_struct(selectedEvts, input->identifierNumber, input->myip , input->version, nbevents, seqNB);
+        pts = create_packet_struct(selected, input->identifierNumber, input->myip , input->version, nbevents, seqNB);
         // Send this packet 
-        create_packet_buf(input->buf, pts);
+        create_packet_buf(b, pts);
         free_packet_struct(pts); // free last packet structure 
         serverlen = sizeof(input->serveraddr);
-        n = sendto(input->sockfd, (const char*) input->buf, BUFSIZE, 0, (struct sockaddr *)&(input->serveraddr), serverlen);
+        n = sendto(input->sockfd, (const char*) b, BUFSIZE, 0, (struct sockaddr *)&(input->serveraddr), serverlen);
         if (n < 0)
         {
             log_error("Could not send datagram", __func__, __LINE__);
         }
         else
-            seqNB = (seqNB % INT_MAX) + 1;
+            if(tag == true)
+                seqNB = (seqNB % INT_MAX) + 1;
         // Should release the lock here 
     }
     else

@@ -88,10 +88,11 @@ static struct respacket* process_packet(unsigned char* buf)
         {
             case 1:
                 dlen = process_description_event_id1(d, buf+index);
-                hasToBeAck = 1;
+                hasToBeAck = d->ack[0] & 1; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
                 break;
             case 2:
-                //dlen = process_description_event_id2(d, buf+index); 
+                dlen = process_description_event_id1(d, buf+index); // for the moment parse event id2 the same way of id1
+                hasToBeAck = d->ack[0] & 1;
                 break;
             case 3:
                 // id 3
@@ -128,7 +129,7 @@ int main(int argc, char **argv) {
     unsigned char buf[BUFSIZE]; /* message buf */
     char *hostaddrp = ""; /* dotted decimal host addr string */
     int optval; /* flag value for setsockopt */
-    int n; /* message byte size */
+    int n = 0; /* message byte size */
     bool responding = true;
     float droprate = 0.0;
     int nbClients = 0;
@@ -178,9 +179,10 @@ int main(int argc, char **argv) {
     */
     clientlen = sizeof(clientaddr);
     int seqPerSwitchId[nbClients];
-    bzero(seqPerSwitchId, nbClients);
+    for(int i = 0; i < nbClients; i++)
+        seqPerSwitchId[i] = 1;
 
-    while (1) {
+    while (true) {
 
         /*
          * recvfrom: receive a UDP datagram from a client
@@ -212,27 +214,34 @@ int main(int argc, char **argv) {
             }
 
             print_packet(rp->parsed);
-            int receivedId = bytes_to_single_int(rp->parsed->sidentifier);
+            int receivedId = 210; //bytes_to_single_int(rp->parsed->sidentifier);
             int receivedSeq = bytes_to_single_int(rp->parsed->seq);
             char* response = "ACK\n";
-            bzero(buf, BUFSIZE); // We use the same buffer so it seems to erase what's inside each time we're done with it
+            bzero(buf, BUFSIZE);
             bcopy(response, buf, strlen(response));
 
             if(rp->response == 1) // Requires an acknowledgment
             {
-                if(seqPerSwitchId[receivedId] == receivedSeq) // IF SEQUENCE NUMBER MATCH - INCREMENT EXPECTED SQN BY 1
+                if(seqPerSwitchId[receivedId] == receivedSeq)
+                {
+                    // IF SEQUENCE NUMBER MATCH - INCREMENT EXPECTED SQN BY 1
                     seqPerSwitchId[receivedId] = (seqPerSwitchId[receivedId] % INT_MAX) + 1;
+                    printf("Expected sequence number \n");
+                } 
 
                 printf("Sending back: %s", buf);
-                n = sendto(sockfd, buf, strlen((char*)buf), 0, (struct sockaddr *) &clientaddr, clientlen);
+                n = sendto(sockfd, (const char*) buf, BUFSIZE, 0, (struct sockaddr *) &clientaddr, clientlen);
                 if (n < 0) 
                     log_error("Could not send response datagram", __func__, __LINE__);
+            }
+            else
+            {
+                printf("Packet received does not require an acknowledgment \n");
             }
             
             free_packet_struct(rp->parsed);
             free(rp);
         }
-
     } // end while server 
 
     return 0;

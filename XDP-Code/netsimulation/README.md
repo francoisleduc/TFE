@@ -29,8 +29,11 @@ $ ./lambda_server 8080 0.0
 And in a third terminal 
 
 ```sh
-sudo ./xdp_load_and_stats --dev s1-eth1 
+sudo ./xdp_load_and_stats -n deviceid -a sourceipaddr -l lambdaip -p lambdaportnb --dev interface-name
 ```
+> Note: The device id must be an integer and should be unique among the other devices
+> Note: The ip address should have this format: x.x.x.x
+> Note: lambdaportnb is the port number of the lambda server that the device will use to send the events
 > Note: adding `--force` after the interface name will have to be used to force the new program to be uploaded in case there is already one
 
 where **s1-eth1** is the interface name you want the kernel program to run on.

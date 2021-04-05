@@ -28,6 +28,7 @@ struct config {
 	char *ipstr;
 	int deviceid;
 	int serverport;
+	char *desipstr;
 };
 
 /* Defined in common_params.o */

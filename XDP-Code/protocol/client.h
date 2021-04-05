@@ -32,6 +32,7 @@ struct event{
 struct args {
     unsigned char myip[SRCIP_S]; // The current device IP 
     char buf[BUFSIZE]; // The buffer used to read/write data
+    char bufSecondary[BUFSIZE]; // The second buffer used to avoid erasing currently used data (two queues)
     int identifierNumber; // The unique ID of the device
     unsigned char version[VERSION_S]; // The version of the protocol that will be used 
     int sockfd; // The socket number (only one used in our case)

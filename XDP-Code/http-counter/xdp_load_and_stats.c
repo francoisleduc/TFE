@@ -82,7 +82,7 @@ int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
 }
 
 
-void add_custom_event()
+void add_custom_event(int id)
 {
     /* To avoid race conditions when adding events to a queue that is used 
     *  by both the communication thread and the polling thread 
@@ -90,11 +90,18 @@ void add_custom_event()
     */
     pthread_mutex_lock(&lock);
         
-    unsigned char s[18];
-    memcpy(s, "Added Event - ACK\0", 18);
-    struct event* newEvent = make_event(1, s, 1, 18);
-    insert_in_list(eventsQACK, newEvent);
-        
+    unsigned char s[20] = {0};
+    memcpy(s, "Added Event for now\0", 20);
+    if(id == 1)
+    {
+        struct event* newEvent = make_event(id, s, 1, 20);
+        insert_in_list(eventsQACK, newEvent);
+    }
+    else
+    {
+        struct event* newEvent = make_event(id, s, 0, 20);
+        insert_in_list(eventsQNOACK, newEvent);
+    }
     pthread_mutex_unlock(&lock);
 	return;
 }
@@ -162,7 +169,7 @@ static void stats_poll(int map_fd, __u32 map_type, int interval)
 	struct datarec *rec;
 
 	bool flag_pkts = false;
-	bool flag_bytes = false;
+	//bool flag_bytes = false; // uncomment if needed
 
 	/* Get initial reading quickly */
 
@@ -172,18 +179,18 @@ static void stats_poll(int map_fd, __u32 map_type, int interval)
 
 		rec  = &record.stats[0]; // Here we are interested in XDP_PASS packet increment XDP_PASS = 2
 
-		if(rec->rx_packets > 20 && flag_pkts == false)
+		if(rec->rx_packets > 10 && flag_pkts == false)
 		{
 			printf("Threshold reached for number of packets: should trigger a remote lambda function \n");
-			add_custom_event();
+			add_custom_event(1);
 			flag_pkts = true;
 		}
 
-		if(rec->rx_bytes > 2000 && flag_bytes == false)
+		if(rec->rx_bytes > 1200)
 		{
 			printf("Threshold reached for number of bytes: should trigger a remote lambda function \n");
-			add_custom_event();
-			flag_bytes = true;
+			add_custom_event(2);
+			//flag_bytes = true;
 		}
 		sleep(interval); // so that user space does not poll constantly but every 2seconds for example
 	}
@@ -236,8 +243,6 @@ static int __check_map_fd_info(int map_fd, struct bpf_map_info *info,
 }
 
 
-
-
 static void* lambda_communication_thread(void* input)
 {
     socklen_t serverlen = 0;
@@ -251,10 +256,13 @@ static void* lambda_communication_thread(void* input)
 
     struct spacket* pts = NULL;
     struct event** selectedEvts = malloc(MAX_EVENT_P*sizeof(struct event));
+    struct event** selectedEvtsNoAck = malloc(MAX_EVENT_P*sizeof(struct event));
 
-    bzero(((struct args*)input)->buf, BUFSIZE);
-    nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
-    before1 = clock();
+    for(int x = 0; x < MAX_EVENT_P; x++)
+    {
+        selectedEvts[x] = NULL;
+        selectedEvtsNoAck[x] = NULL;
+    }
 
     log_info("Setting flags \n");
 
@@ -301,29 +309,35 @@ static void* lambda_communication_thread(void* input)
         if(msec > trigger2)
         {
             //log_info("Timer alert: Sending from non essential queue \n");
-            nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, false);
+            bzero(((struct args*)input)->bufSecondary, BUFSIZE);
+            int noa = send_new(pts, (struct args*) input, lock, selectedEvtsNoAck, serverlen, false);
+            if(noa > 0)
+            {
+                pthread_mutex_lock(&lock);
+                free_buffer_waiting_events(selectedEvtsNoAck, eventsQNOACK);
+                pthread_mutex_unlock(&lock);
+            }
+            
             before2 = clock();
         }
         
         /* print the server's reply */
         n = recvfrom(((struct args*)input)->sockfd, ((struct args*)input)->buf, BUFSIZE, O_NONBLOCK, 
             (struct sockaddr *)&(((struct args*)input)->serveraddr), &serverlen);
-        if (n > 0 && n < 1024)
+
+        if (n > 0 && n <= 1024)
         {
             if(((struct args*)input)->buf[0] == 'A' && ((struct args*)input)->buf[1] == 'C' && ((struct args*)input)->buf[2] == 'K')
             {
                 pthread_mutex_lock(&lock);
                 free_buffer_waiting_events(selectedEvts, eventsQACK); // remove from Q and selectedEvts array
-                pts = NULL;
-
                 pthread_mutex_unlock(&lock);
-                // Did read something on the socket 
+
                 ((struct args*)input)->buf[n] = '\0';
                 printf("Echo from server: %s \n", ((struct args*)input)->buf);
                 log_info("Acknowledgment received: sending new packet \n");
-                bzero(((struct args*)input)->buf, BUFSIZE);
 
-                send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, false);
+                bzero(((struct args*)input)->buf, BUFSIZE);
                 nbevents = send_new(pts,(struct args*) input, lock, selectedEvts, serverlen, true);
                 before1 = clock();
                 before2 = clock();
@@ -332,6 +346,8 @@ static void* lambda_communication_thread(void* input)
     }
 
     free(selectedEvts);
+    free(selectedEvtsNoAck);
+
     free((struct args*)input);
     terminated = true;
     pthread_detach(pthread_self()); // To avoid memory leaks 
@@ -348,7 +364,7 @@ int main(int argc, char **argv)
     struct sockaddr_in serveraddr;
     struct hostent *server;
     char buf[BUFSIZE];
-
+    char bufSecondary[BUFSIZE];
     /* BPF */
 
 	struct bpf_map_info map_expect = { 0 };
@@ -372,7 +388,6 @@ int main(int argc, char **argv)
 	/* Required option */
 	if (cfg.ifindex == -1) {
 		fprintf(stderr, "ERR: required option --dev missing\n");
-		//usage(argv[0], __doc__, long_options, (argc == 1));
 		return EXIT_FAIL_OPTION;
 	}
 
@@ -387,10 +402,10 @@ int main(int argc, char **argv)
 	printf(" - XDP prog attached on device:%s(ifindex:%d)\n",
 	       cfg.ifname, cfg.ifindex);
 	
-    printf("Success: Parsed IP address of the interface (%s) \n", cfg.ipstr);
+    printf("Success: Parsed source IP address (%s) \n", cfg.ipstr);
     printf("Success: Parsed unique identifier of the device (%d) \n", cfg.deviceid);
     printf("Success: Parsed lambda server port number (%d) \n", cfg.serverport);
-
+    printf("Success: Parsed destination IP address (%s) \n", cfg.desipstr);
 
 
     /** Network **/
@@ -402,7 +417,7 @@ int main(int argc, char **argv)
        log_error("Could not open socket", __func__, __LINE__);
 
     /* gethostbyname: get the server's DNS entry */
-    server = gethostbyname(cfg.ipstr);
+    server = gethostbyname(cfg.desipstr);
     if (server == NULL) {
        log_fatal("No such host", __FILE__, __func__, __LINE__);
        exit(0);
@@ -417,15 +432,14 @@ int main(int argc, char **argv)
 
     /* get a message from the user */
     bzero(buf, BUFSIZE);
-
+    bzero(bufSecondary, BUFSIZE);
 
     // Instantiation of the two lists used to send events 
     eventsQACK = new_list();
     eventsQNOACK = new_list();
 
-    unsigned char myip[SRCIP_S] = {0x7F, 0x0, 0x0, 0x1}; // this should be converted from the ip string and checked 
+    unsigned char myip[SRCIP_S] = {0x7F, 0x0, 0x0, 0x1}; // this should be converted from the ip string and checked && cfg.ipstr
     unsigned char version[VERSION_S] = {0x1}; // same v1.0
-
 
     /* BPF */
 
@@ -462,6 +476,7 @@ int main(int argc, char **argv)
     
     in->sockfd = sockfd;
     memcpy(in->buf, buf, BUFSIZE);
+    memcpy(in->bufSecondary, bufSecondary, BUFSIZE);
     memcpy(in->myip, myip, SRCIP_S);
     in->identifierNumber = cfg.deviceid;
     memcpy(in->version, version, VERSION_S);

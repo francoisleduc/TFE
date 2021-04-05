@@ -34,11 +34,16 @@ static void* lambda_communication_thread(void* input)
 
     struct spacket* pts = NULL;
     struct event** selectedEvts = malloc(MAX_EVENT_P*sizeof(struct event));
+    struct event** selectedEvtsNoAck = malloc(MAX_EVENT_P*sizeof(struct event));
+
+    for(int x = 0; x < MAX_EVENT_P; x++)
+    {
+        selectedEvts[x] = NULL;
+        selectedEvtsNoAck[x] = NULL;
+    }
 
     bzero(((struct args*)input)->buf, BUFSIZE);
     nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
-    before1 = clock();
-
     log_info("Setting flags \n");
 
     // Non blocking receive method flags 
@@ -46,8 +51,11 @@ static void* lambda_communication_thread(void* input)
     flags |= O_NONBLOCK;
     fcntl(((struct args*)input)->sockfd, F_SETFL, flags);
 
+    int counter = 0;
     while(t)
     {
+        if(counter == 10)
+            break; // testing purposes 
         clock_t difference1 = clock() - before1;
         msec = difference1 * 1000 / CLOCKS_PER_SEC;
         if(msec > trigger1 && nbevents > 0)
@@ -55,7 +63,8 @@ static void* lambda_communication_thread(void* input)
             // Resend because timer expired and still did not receive an ACK for the last packet 
             log_info("Timer alert: Retransmission of last packet \n");
             serverlen = sizeof(((struct args*)input)->serveraddr);
-            n = sendto(((struct args*)input)->sockfd, (const char*) ((struct args*)input)->buf, BUFSIZE, 0, (struct sockaddr *)&(((struct args*)input)->serveraddr), serverlen);
+            n = sendto(((struct args*)input)->sockfd, (const char*) ((struct args*)input)->buf, BUFSIZE, 0, 
+                (struct sockaddr *)&(((struct args*)input)->serveraddr), serverlen);
             if (n < 0)
             {
                 log_error("Could not send datagram", __func__, __LINE__);
@@ -69,54 +78,66 @@ static void* lambda_communication_thread(void* input)
         if(msec > trigger1 && nbevents == 0)
         {
             // send new 
-            log_info("Timer alert: Sending now because queue was empty last time \n");
+            //log_info("Timer alert: Sending now because queue was empty last time \n");
             nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
             before1 = clock();
         }
 
 
-        // Here we check if the events that don't need an ACK can be sent depending on their own timer (which is most likely to be different from the previous one)
+        /* Here we check if the events that don't need an ACK can be sent depending on their own timer 
+         * (which is most likely to be different from the previous one)
+        */
         clock_t difference2 = clock() - before2;
         msec = difference2 * 1000 / CLOCKS_PER_SEC;
         if(msec > trigger2)
         {
-            log_info("Timer alert: Sending from non essential queue \n");
-            nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, false);
+            //log_info("Timer alert: Sending from non essential queue \n");
+            bzero(((struct args*)input)->bufSecondary, BUFSIZE);
+            int noa = send_new(pts, (struct args*) input, lock, selectedEvtsNoAck, serverlen, false);
+            if(noa > 0)
+            {
+                pthread_mutex_lock(&lock);
+                free_buffer_waiting_events(selectedEvtsNoAck, eventsQNOACK);
+                pthread_mutex_unlock(&lock);
+            }
+            
             before2 = clock();
         }
         
         /* print the server's reply */
-        n = recvfrom(((struct args*)input)->sockfd, ((struct args*)input)->buf, BUFSIZE, O_NONBLOCK, (struct sockaddr *)&(((struct args*)input)->serveraddr), &serverlen);
-        if (n > 0 && n < 1024)
+        n = recvfrom(((struct args*)input)->sockfd, ((struct args*)input)->buf, BUFSIZE, O_NONBLOCK, 
+            (struct sockaddr *)&(((struct args*)input)->serveraddr), &serverlen);
+
+        if (n > 0 && n <= 1024)
         {
             if(((struct args*)input)->buf[0] == 'A' && ((struct args*)input)->buf[1] == 'C' && ((struct args*)input)->buf[2] == 'K')
             {
                 pthread_mutex_lock(&lock);
                 free_buffer_waiting_events(selectedEvts, eventsQACK); // remove from Q and selectedEvts array
-                pts = NULL;
-
                 pthread_mutex_unlock(&lock);
-                // Did read something on the socket 
+
                 ((struct args*)input)->buf[n] = '\0';
                 printf("Echo from server: %s \n", ((struct args*)input)->buf);
                 log_info("Acknowledgment received: sending new packet \n");
-                bzero(((struct args*)input)->buf, BUFSIZE);
 
-                send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, false);
+                bzero(((struct args*)input)->buf, BUFSIZE);
                 nbevents = send_new(pts,(struct args*) input, lock, selectedEvts, serverlen, true);
                 before1 = clock();
                 before2 = clock();
+
+                counter++;
             }
         }
     }
 
     free(selectedEvts);
+    free(selectedEvtsNoAck);
+
     free((struct args*)input);
     terminated = true;
     pthread_detach(pthread_self()); // To avoid memory leaks 
     pthread_exit(NULL);
 }
-
 
 
 int main(int argc, char **argv) {
@@ -125,6 +146,7 @@ int main(int argc, char **argv) {
     struct hostent *server;
     char *hostname;
     char buf[BUFSIZE];
+    char bufSecondary[BUFSIZE];
 
     srand(time(NULL));
     /* check command line arguments */
@@ -157,7 +179,7 @@ int main(int argc, char **argv) {
 
     /* get a message from the user */
     bzero(buf, BUFSIZE);
-
+    bzero(bufSecondary, BUFSIZE);
     /* send the message to the server */
     
     /* Create a fake list of events to be sent periodically to the lambda server */
@@ -196,6 +218,7 @@ int main(int argc, char **argv) {
     
     in->sockfd = sockfd;
     memcpy(in->buf, buf, BUFSIZE);
+    memcpy(in->bufSecondary, bufSecondary, BUFSIZE);
     memcpy(in->myip, myip, SRCIP_S);
     in->identifierNumber = identifierNumber;
     memcpy(in->version, version, VERSION_S);

@@ -18,7 +18,7 @@
 
 #define EVENTID_S 4
 #define DLENGTH_S 4
-#define ACK_S 1
+#define ACK_S 1 // Should not be changed 
 
 
 

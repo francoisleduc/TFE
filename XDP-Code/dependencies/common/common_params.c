@@ -49,7 +49,7 @@ void parse_cmdline_args(int argc, char **argv,
 	}
 
 	/* Parse commands line args */
-	while ((opt = getopt_long(argc, argv, "p:a:n:hd:F",
+	while ((opt = getopt_long(argc, argv, "l:p:s:n:hd:F",
 				  long_options, &longindex)) != -1) {
 		switch (opt) {
 		case 'd':
@@ -67,12 +67,12 @@ void parse_cmdline_args(int argc, char **argv,
 				goto error;
 			}
 			break;
-		case 'a':
+		case 's':
 			cfg->ipstr = malloc(16*sizeof(char));
 			if(strlen(optarg) > 15)
 			{
 				fprintf(stderr,
-					"ERR: Length of IP string format too long\n");
+					"ERR: Length of -s IP string format too long\n");
 				goto error;
 			}
 			strncpy(cfg->ipstr, optarg, strlen(optarg));
@@ -83,6 +83,17 @@ void parse_cmdline_args(int argc, char **argv,
 			break;
 		case 'p':
 			cfg->serverport = atoi(optarg);
+			break;
+		case 'l':
+			cfg->desipstr = malloc(16*sizeof(char));
+			if(strlen(optarg) > 15)
+			{
+				fprintf(stderr,
+					"ERR: Length of -l IP string format too long\n");
+				goto error;
+			}
+			strncpy(cfg->desipstr, optarg, strlen(optarg));
+			cfg->desipstr[strlen(optarg)] = '\0';
 			break;
 		case 'F':
 			cfg->xdp_flags &= ~XDP_FLAGS_UPDATE_IF_NOEXIST;
