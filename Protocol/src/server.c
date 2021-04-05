@@ -23,6 +23,7 @@ struct respacket{
     int response;
 };
 
+int total_events = 0;
 
 static int process_description_event_id1(struct pdescription* d, unsigned char* buf)
 {
@@ -76,6 +77,8 @@ static struct respacket* process_packet(unsigned char* buf)
     int index = VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;  
 
     int hasToBeAck = 0;
+    total_events = total_events + (int) rp->nbevents[0];
+
     for(int i = 0; i < (int) rp->nbevents[0]; i++)
     {
         int dlen = 0;
@@ -213,7 +216,7 @@ int main(int argc, char **argv) {
                 return -1;
             }
 
-            print_packet(rp->parsed);
+            //print_packet(rp->parsed);
             int receivedId = 210; //bytes_to_single_int(rp->parsed->sidentifier);
             int receivedSeq = bytes_to_single_int(rp->parsed->seq);
             char* response = "ACK\n";
@@ -239,6 +242,7 @@ int main(int argc, char **argv) {
                 printf("Packet received does not require an acknowledgment \n");
             }
             
+            printf("total_events : %d \n", total_events);
             free_packet_struct(rp->parsed);
             free(rp);
         }

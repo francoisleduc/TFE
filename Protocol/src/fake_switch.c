@@ -51,10 +51,10 @@ static void* lambda_communication_thread(void* input)
     flags |= O_NONBLOCK;
     fcntl(((struct args*)input)->sockfd, F_SETFL, flags);
 
-    int counter = 0;
+    int counter = nbevents;
     while(t)
     {
-        if(counter == 10)
+        if(counter > 50)
             break; // testing purposes 
         clock_t difference1 = clock() - before1;
         msec = difference1 * 1000 / CLOCKS_PER_SEC;
@@ -81,6 +81,9 @@ static void* lambda_communication_thread(void* input)
             //log_info("Timer alert: Sending now because queue was empty last time \n");
             nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
             before1 = clock();
+            counter = counter + nbevents;
+            printf("COUNTER EVENTS %d \n", counter);
+
         }
 
 
@@ -125,11 +128,14 @@ static void* lambda_communication_thread(void* input)
                 before1 = clock();
                 before2 = clock();
 
-                counter++;
+                counter = counter + nbevents;
+                printf("COUNTER EVENTS %d \n", counter);
+
             }
         }
     }
 
+    printf("COUNTER EVENTS %d \n", counter);
     free(selectedEvts);
     free(selectedEvtsNoAck);
 
@@ -235,17 +241,17 @@ int main(int argc, char **argv) {
 
 
     /* Do not include in XDP */
+
+    usleep(300 * 1000);
     while(1)
     {
         /* This loop plays the role of the polling system on the switch which is responsible every x miliseconds to check if conditions
         are met to trigger lambda events and thus send them to the lambda server 
         NB: Normally this is in this same loop that we add events too but for now they are pre-loaded for testing purposes
         */
-        usleep(800 * 1000); // sleep for 50 ms
-        printf("### Main process adding lambda events in the queue \n");
-
+        usleep(60 * 1000);
         pthread_mutex_lock(&lock);
-        
+        printf("### Main process adding lambda events in the queue \n");
         unsigned char s[18];
         memcpy(s, "Added Event - ACK\0", 18);
         struct event* newEvent = make_event(1, s, 1, 18);

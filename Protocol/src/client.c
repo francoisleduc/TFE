@@ -115,20 +115,20 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
         {
             struct event* ev = (struct event*)get_element_value(current);
             if(sum + get_description_header_size() + ev->textlen  < BUFSIZE)
+            {
                 selected[i] = ev;
+                sum += ev->textlen + get_description_header_size();
+                current = get_element_next(current);
+                (*nbevents)++;
+            }
             else
-                break;
-
-            sum += ev->textlen + get_description_header_size();
-            current = get_element_next(current);
-            (*nbevents)++;
+                selected[i] = NULL;
         }
+        else // fill up the end of the array with NULL 
+            selected[i] = NULL;
     }
 
-    for(int x = i; i < MAX_EVENT_P; x++)
-    {
-        selected[i] = NULL;
-    }
+    
 
     printf("Total sum : %d - Number of events: %d \n", sum, *nbevents);
     set_head_list(q, saveh);
