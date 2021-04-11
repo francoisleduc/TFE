@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "log.h"
+#include "linkedlist.h"
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -13,11 +14,33 @@
 #include <stdbool.h> 
 #include <netinet/in.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
 /* 
 * Maximum number of event per packet (not really an important parameter but this could be tweaked to avoid packet loss with
 * smaller packets overall
 */
 #define MAX_EVENT_P 50 
+
+struct spacket{
+    unsigned char version[VERSION_S];
+    unsigned char srcip[SRCIP_S];
+    unsigned char sidentifier[SRCID_S];
+    unsigned char seq[SEQ_S];
+    unsigned char nbevents[NBEVENTS_S];
+    List* eventdescri;
+};
+
+
+struct pdescription{
+    unsigned char len[DLENGTH_S]; // total description struct length in byte 
+    unsigned char eventid[EVENTID_S];
+    unsigned char ack[ACK_S];
+    unsigned char* textd; // Does not have to be text 
+    int textlen;
+};
+
 
 struct event{
     /* Common field of event to be sent on the network */
@@ -55,4 +78,15 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
 
 int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
     struct event** selectedEvts, socklen_t serverlen, bool tag);
+
+
+/* utils for client */
+
+void print_byte_array(unsigned char* buf, int x);
+void print_packet(struct spacket* p);
+void print_ip_int(unsigned char* ip);
+void print_description_struct(struct pdescription *d);
+
+void int_to_bytes(unsigned char* bytes, unsigned long n);
+int bytes_to_single_int(unsigned char* bytes);
 #endif

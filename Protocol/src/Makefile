@@ -1,10 +1,11 @@
 # COMPILER #
 CC=gcc
+CPP=g++
 LD=gcc
 AR=ar
 
 # FLAGS #
-CFLAGS=-Wall -Wmissing-prototypes
+CFLAGS=-Wall -Wextra
 LDFLAGS=-lpthread
 
 # CONFIGURATION FILE #
@@ -14,23 +15,27 @@ RLEASE=release
 
 # COMMANDS #
 all: $(EXEC) $(EXEC2) $(RLEASE)
-$(EXEC): fake_switch.o client.o log.o linkedlist.o common.o
-	$(LD) -o ../netsimulation/$(EXEC) fake_switch.o client.o linkedlist.o log.o common.o $(LDFLAGS)
-$(EXEC2): server.o log.o linkedlist.o common.o
-	$(LD) -o ../netsimulation/$(EXEC2) server.o linkedlist.o log.o common.o $(LDFLAGS)
+$(EXEC): fake_switch.o client.o log.o linkedlist.o
+	$(LD) -o ../netsimulation/$(EXEC) fake_switch.o client.o linkedlist.o log.o $(LDFLAGS)
+$(EXEC2): server.o lambda_server.o
+	$(CPP) -o ../netsimulation/$(EXEC2) server.o lambda_server.o $(LDFLAGS)
 	$(MAKE) $(RLEASE)
-client.o: client.c client.h
+
+client.o: client.c client.h common.h
 	$(CC) -c client.c -o client.o $(CFLAGS)
 linkedlist.o: linkedlist.c linkedlist.h
 	$(CC) -c linkedlist.c -o linkedlist.o $(CFLAGS)
 log.o: log.c log.h
 	$(CC) -c log.c -o log.o $(CFLAGS)
-server.o: server.c
-	$(CC) -c server.c -o server.o $(CFLAGS)
-common.o: common.c common.h
-	$(CC) -c common.c -o common.o $(CFLAGS)
 fake_switch.o: fake_switch.c
 	$(CC) -c fake_switch.c -o fake_switch.o $(CFLAGS)
+
+
+server.o: Server.cpp Server.h
+	$(CPP) -c Server.cpp -o server.o $(CFLAGS) -std=c++14
+lambda_server.o: lambda.cpp
+	$(CPP) -c lambda.cpp -o lambda_server.o $(CFLAGS) -std=c++14
+
 release:
 	cp -f ../netsimulation/lambda_server ../../XDP-Code/netsimulation
 archive:
@@ -46,6 +51,5 @@ push:
 	cp -f linkedlist.h ../../XDP-Code/protocol
 	cp -f client.c ../../XDP-Code/protocol
 	cp -f client.h ../../XDP-Code/protocol
-	cp -f common.c ../../XDP-Code/protocol
 	cp -f common.h ../../XDP-Code/protocol
 

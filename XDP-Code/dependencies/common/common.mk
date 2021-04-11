@@ -33,7 +33,7 @@ OBJECT_LIBBPF = $(LIBBPF_DIR)/libbpf.a
 # Extend if including Makefile already added some
 COMMON_OBJS += $(COMMON_DIR)/common_params.o $(COMMON_DIR)/common_user_bpf_xdp.o
 
-PROTO_OBJS += $(PROTO_DIR)/client.o $(PROTO_DIR)/log.o $(PROTO_DIR)/common.o $(PROTO_DIR)/linkedlist.o
+PROTO_OBJS += $(PROTO_DIR)/client.o $(PROTO_DIR)/log.o $(PROTO_DIR)/linkedlist.o
 # Create expansions for dependencies
 COMMON_H := ${COMMON_OBJS:.o=.h}
 

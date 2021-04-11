@@ -54,7 +54,7 @@ static void* lambda_communication_thread(void* input)
     int counter = nbevents;
     while(t)
     {
-        if(counter > 50)
+        if(counter > 70)
             break; // testing purposes 
         clock_t difference1 = clock() - before1;
         msec = difference1 * 1000 / CLOCKS_PER_SEC;
