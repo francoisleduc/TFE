@@ -1,3 +1,3 @@
-def hello(event, context)
-    print("Hello world")
-    return "Hello to you!"
+def hello(event, context):
+  print event
+  return event['data']
