@@ -27,18 +27,19 @@ The lambda server exectuable will be the lambda server code deployed in the netw
 
 
 ```sh
-./lambda_server port packet_drop_rate
+./lambda_server ip port packet_drop_rate max_client_nb
 ```
 
-where the packet\_drop\_rate is a custom dev parameter to test the protocol when packets are dropped on the network. This way we can look for loopholes or simply check the behavior of the server according to the number of packets dropped.
+where the packet\_drop\_rate is a custom dev parameter to test the protocol by simulating packet drops on the network. This way we can look for loopholes or simply check the behavior of the server according to the number of packets dropped.
+The max\_client\_nb is the maximum number of unique devices that the server will keep context for (essentially sequence numbers).
 
 For a standard usage the following command is used:
 
 ```sh
-./lambda_server 8080 0.05
+./lambda_server 127.0.0.1 8080 0.05 1000
 ```
 
-> Note: `./lambda_server 8080 0.0` will act as if there was absolutely no packet loss on the network 
+> Note: `./lambda_server 127.0.0.1 8080 0.0 1000` will act as if there was absolutely no packet loss on the network 
 
 
 ## License
