@@ -23,7 +23,7 @@ in mininet
 In second terminal you want to launch the lambda_server
 
 ```sh
-$ ./lambda_server 8080 0.0
+$ ./lambda_server 127.0.0.1 8080 0.0 1000
 ```
 
 And in a third terminal 
