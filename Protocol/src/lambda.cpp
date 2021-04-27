@@ -2,15 +2,16 @@
 // Created by francois
 //
 #define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "httplib.h"
+
+#include "json.hpp"
+#include "Server.hpp"
+
 
 #include <iostream>
 #include <vector>
 #include <arpa/inet.h>
-#include <cstring>
 #include <climits>
-#include "Server.h"
-
+#include <string>
 
 extern int total_events;
 
@@ -37,15 +38,38 @@ int main(int argc, char** argv) {
     nbClients = atoi(argv[4]);
     cout << "[INFO] Listening on port: " << portno << " with droprate: " << droprate << endl;
 
-    auto *s = new Server(portno, ip);
 
     clientlen = sizeof(clientaddr);
     vector<int> seqPerSwitchId(nbClients, 1); // create vector of size nbclient init with 1's
 
 
+    using json = nlohmann::json;
+    json j;
+    ifstream ifs("config.json");
+    if (!ifs.is_open())
+    {
+        cout << "[FATAL] Path to configuration file not found " << endl;
+        cout << "[FATAL] Looking for config.json in current directory" << endl;
+        return false;
+    }
+    ifs >> j;
+    ifs.close();
     
+    cout << "[INFO] Configuration imported .." << endl;
+    cout << j.dump(3) << endl;
+                                                                /* UNORDERED MAP */
+    unordered_map<int, string> configmap; // string(event number) ------> string(corresponding lambda function name (service))
+    cout << "[INFO] Config size: " << j.size() << endl;
 
-    
+    for (unsigned int i = 1; i <= j.size(); i++)
+    {
+        std::string x = std::to_string(i);
+        if (j.find(x) != j.end()) 
+            configmap[i] = j[x];
+    }
+
+    auto *s = new Server(portno, ip, configmap);
+
     while (true) {
         bzero(buf, BUFSIZE);
         pair<socklen_t, struct sockaddr_in> p = s->receive(buf, clientlen, clientaddr); // Store original sender info
@@ -85,19 +109,8 @@ int main(int argc, char** argv) {
                 cout << "Packet received does not require an acknowledgment " << endl;
             }
 
-            httplib::Client cli("localhost", 8001);
-            httplib::Params params{
-            { "data", "This is sent from the lambda server to the cluster for exectution via http trigger, if sent back then function is working" }
-            };
-            auto p = cli.Post("/api/v1/namespaces/default/services/hello:http-function-port/proxy/", params);
-            cout << "Status code : " << p->status << endl;
-            cout << "Text : " << p->body << endl;
-            cout << "total_events : " << total_events << endl;
-            
             s->free_packet_struct(rp->parsed);
             delete(rp);
-
-            
         }
     } // end while server
 }

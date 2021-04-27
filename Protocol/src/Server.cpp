@@ -7,17 +7,18 @@
  * usage: udpserver <port>
  */
 
-#include "Server.h"
+#include "Server.hpp"
 
 using namespace std;
 
 int total_events = 0;
 
 
-Server::Server(int port, char* address)
+Server::Server(int port, char* address, unordered_map<int, string> m)
 {
     this->portno = port;
     this->ip = address;
+    this->ev_lam_map = m;
     /*
     * socket: create the parent socket
     */
@@ -85,6 +86,36 @@ pair<socklen_t, struct sockaddr_in> Server::send(const unsigned char* buf, sockl
 }
 
 
+void Server::execute_lambda_function(int eventid)
+{
+
+    const char* path = "/api/v1/namespaces/default/services/";
+    const char* serviceName = this->ev_lam_map[eventid].c_str();
+    const char* end = ":http-function-port/proxy/";
+    httplib::Client cli("localhost", 8001);
+    httplib::Params params
+    {
+        { "data", "This is sent from the lambda server to the cluster for exectution via http trigger, if sent back then function is working" }
+    };
+
+
+    char result[BUFSIZE];   // array to hold the result.
+    bzero(result, BUFSIZE);
+    strcat(result, path);
+    strcat(result, (char*)serviceName); // copy string one into the result.
+    strcat(result, end);
+
+    //cout << "FULL URL: " << result << endl;
+    // hello is the service deployed corresponding to the lambda function 
+    auto p = cli.Post(result, params);
+
+    // Output the response of the lambda function 
+    cout << "Status code : " << p->status << endl;
+    //cout << "Text : " << p->body << endl;
+    cout << "total_events : " << total_events << endl;
+}
+
+
 int Server::process_description_event_id1(struct pdescription* d, unsigned char* buf)
 {
     memcpy(d->ack, buf+DLENGTH_S+EVENTID_S, ACK_S);
@@ -93,6 +124,8 @@ int Server::process_description_event_id1(struct pdescription* d, unsigned char*
     d->textd = new unsigned char[d->textlen];
     memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S, d->textlen);
 
+
+    execute_lambda_function(1);
     return (d->textlen + DESCRI_HEADER_SIZE);
 }
 
@@ -140,6 +173,7 @@ struct respacket* Server::process_packet(unsigned char* buf)
             default:
                 cout << "Default id parsing "<< endl;
         }
+
 
         index = index + dlen;
         rp->eventdescri.push_back(d);

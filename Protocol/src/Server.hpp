@@ -4,11 +4,13 @@
 
 #ifndef LAMBDA_SERVER_H
 #define LAMBDA_SERVER_H
+#include "httplib.h"
 
 #include "common.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <unordered_map>
 
 #include <vector>
 #include <unistd.h>
@@ -48,9 +50,10 @@ class Server
         int portno;
         sockaddr_in serveraddr{};
         char* ip;
+        unordered_map<int, string> ev_lam_map;
 
     public:
-        Server(int port, char* address);
+        Server(int port, char* address, unordered_map<int, string> m);
         ~Server();
 
         int get_sock();
@@ -58,6 +61,7 @@ class Server
         pair<socklen_t, struct sockaddr_in> send(const unsigned char* buf, socklen_t clientlen, struct sockaddr_in clientaddr) const;
         struct respacket* process_packet(unsigned char* buf);
         int process_description_event_id1(struct pdescription* d, unsigned char* buf);
+        void execute_lambda_function(int eventid);
         static void free_packet_struct(struct spacket* p);
 };
 #endif //LAMBDA_SERVER_H

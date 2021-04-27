@@ -31,10 +31,10 @@ fake_switch.o: fake_switch.c
 	$(CC) -c fake_switch.c -o fake_switch.o $(CFLAGS)
 
 
-server.o: Server.cpp Server.h
-	$(CPP) -c Server.cpp -o server.o $(CFLAGS) -std=c++14
-lambda_server.o: lambda.cpp httplib.h
-	$(CPP) -c lambda.cpp -L/usr/lib -lssl -lcrypto -o lambda_server.o $(CFLAGS) -std=c++14
+server.o: Server.cpp Server.hpp httplib.h
+	$(CPP) -c Server.cpp -L/usr/lib -lssl -lcrypto -o server.o $(CFLAGS) -std=c++14
+lambda_server.o: lambda.cpp json.hpp
+	$(CPP) -c lambda.cpp -o lambda_server.o $(CFLAGS) -std=c++14
 
 release:
 	cp -f ../netsimulation/lambda_server ../../XDP-Code/netsimulation
