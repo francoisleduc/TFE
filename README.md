@@ -16,7 +16,7 @@ and
 and 
 
 ```sh
-/Kubeless 
+/Kubernetes
 ```
 
 
@@ -24,7 +24,7 @@ The first one focuses on a program that counts packets, bytes at a network inter
 
 The second one focuses on the development of a (programmable device) client -> (lambda) server protocol. The client wants to send a multitude of events to the server, each with a unique identifier. 
 
-Kubeless is a Kubernetes-native serverless framework that lets you deploy small bits of code (functions) without having to worry about the underlying infrastructure. This folder will contain the functions we want to be deployed in the cluster.
+Kubeless is a Kubernetes-native serverless framework that lets you deploy small bits of code (functions) without having to worry about the underlying infrastructure. This folder will contain the functions we want to be deployed in the cluster as well as all Kubernetes services deployed.
 
 ## License
 
