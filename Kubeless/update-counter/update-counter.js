@@ -16,17 +16,15 @@ module.exports = {
           reject(cerr);
         } else {
           var db = client.db('counters'); // database is called counters 
-          var myquery = { name: "8080", value: "130012"};
-          db.collection('ports').insertOne(myquery, (errInsert) => {
-            if (errInsert) {
-              console.log("Could not insert in database");
-              reject(errInsert);
-            } else {
-              //resolve(JSON.stringify(data));
-              client.close();
-            }
-          });
-        }
+          var myquery = { name: "8080"};
+          var newval = { $set: {name: "8080", value: "12" } }; // 12 is a new value for example - we should read it from the event.data obviously
+          db.collection("ports").updateOne(myquery, newvalues, function(err, result) {
+          if (err) 
+            throw err;
+          return "Updated";
+          client.close();
+          }); // 
+        } // else
     });
     return event.data; // just for myself 
   }
