@@ -66,9 +66,9 @@ clean:
 	rm -f *~
 
 $(EXPORT_SIMU):
-	cp -f xdp_load_and_stats ../netsimulation/
-	cp -f xdp_prog_kern.o ../netsimulation/
-	cp -f xdp_prog_kern.ll ../netsimulation/
+	cp -f xdp_load_and_stats_flow ../netsimulation/
+	cp -f xdp_prog_kern_flow.o ../netsimulation/
+	cp -f xdp_prog_kern_flow.ll ../netsimulation/
 
 $(PROTO):
 	$(MAKE) -C $(PROTO_DIR) all
