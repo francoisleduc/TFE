@@ -61,6 +61,7 @@ class Server
         pair<socklen_t, struct sockaddr_in> send(const unsigned char* buf, socklen_t clientlen, struct sockaddr_in clientaddr) const;
         struct respacket* process_packet(unsigned char* buf);
         int process_description_event_id1(struct pdescription* d, unsigned char* buf);
+        int process_description_event_id2(struct pdescription* d, unsigned char* buf);
         void execute_lambda_function(int eventid);
         static void free_packet_struct(struct spacket* p);
 };

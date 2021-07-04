@@ -88,5 +88,6 @@ void print_ip_int(unsigned char* ip);
 void print_description_struct(struct pdescription *d);
 
 void int_to_bytes(unsigned char* bytes, unsigned long n);
+void int64_to_bytes(unsigned char* bytes, unsigned long n);
 int bytes_to_single_int(unsigned char* bytes);
 #endif

@@ -84,7 +84,8 @@ int main(int argc, char** argv) {
         if ((droprate < rd) && responding) 
         {
             struct respacket *rp = s->process_packet(buf);
-            if (!rp) {
+            if (!rp) 
+            {
                 exit(1);
             }
 

@@ -14,6 +14,24 @@ using namespace std;
 int total_events = 0;
 
 
+
+int bytes_to_int(const unsigned char* bytes)
+{
+    int a = (int)(unsigned char)(bytes[0]) << 24 | (unsigned char)(bytes[1]) << 16 |
+            (unsigned char)(bytes[2]) << 8 | (unsigned char)(bytes[3]);
+    return a;
+}
+
+
+int64_t bytes_to_int64(const unsigned char* bytes)
+{
+    int64_t a = (int64_t) (int64_t) (bytes[0]) << 56 | (int64_t) (bytes[1]) << 48 | 
+        (int64_t) (bytes[2]) << 40 | (int64_t) (bytes[3]) << 32 | (int64_t) (bytes[4]) << 24 
+        | (int64_t) (bytes[5]) << 16 | (int64_t) (bytes[6]) << 8 | (int64_t) (bytes[7]);
+
+    return a;
+}
+
 Server::Server(int port, char* address, unordered_map<int, string> m)
 {
     this->portno = port;
@@ -125,9 +143,33 @@ int Server::process_description_event_id1(struct pdescription* d, unsigned char*
     memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S, d->textlen);
 
 
-    execute_lambda_function(1);
+    //execute_lambda_function(1);
     return (d->textlen + DESCRI_HEADER_SIZE);
 }
+
+
+
+int Server::process_description_event_id2(struct pdescription* d, unsigned char* buf)
+{
+    memcpy(d->ack, buf+DLENGTH_S+EVENTID_S, ACK_S);
+    d->textlen = bytes_to_int(d->len) - DESCRI_HEADER_SIZE;
+    d->textd = new unsigned char[d->textlen];
+    memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S, d->textlen);
+
+    int src = bytes_to_int(d->textd);
+    int dest = bytes_to_int((d->textd)+4);
+    int ports = bytes_to_int((d->textd)+8);
+    int protocol = bytes_to_int((d->textd)+12);
+    int count = bytes_to_int((d->textd)+16);
+    int64_t size = bytes_to_int64((d->textd)+20);
+    printf("Received: src: %d , dst: %d , ports %d , protocol %d , count %d , size %ld \n", src, dest, ports, protocol, count, size);
+    //execute_lambda_function(1);
+
+	// print description to show event was correctly sent from switch to lambda server
+	 
+    return (d->textlen + DESCRI_HEADER_SIZE);
+}
+
 
 struct respacket* Server::process_packet(unsigned char* buf)
 {
@@ -161,8 +203,10 @@ struct respacket* Server::process_packet(unsigned char* buf)
                 hasToBeAck = d->ack[0] & 1; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
                 break;
             case 2:
-                dlen = process_description_event_id1(d, buf+index); // for the moment parse event id2 the same way of id1
-                hasToBeAck = d->ack[0] & 1;
+                hasToBeAck = 1;
+                dlen = process_description_event_id2(d, buf+index);
+                //hasToBeAck = d->ack[0] & 1;
+					 cout << "Received id 2 " << endl;
                 break;
             case 3:
                 // id 3
@@ -204,9 +248,3 @@ void Server::free_packet_struct(struct spacket* p)
     }
 }
 
-int bytes_to_int(const unsigned char* bytes)
-{
-    int a = (int)(unsigned char)(bytes[0]) << 24 | (unsigned char)(bytes[1]) << 16 |
-            (unsigned char)(bytes[2]) << 8 | (unsigned char)(bytes[3]);
-    return a;
-}

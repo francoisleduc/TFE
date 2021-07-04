@@ -21,6 +21,16 @@ extern bool terminated;
 extern int seqNB;
 
 
+static void request_forge_flow_packet(int src, int dest, int ports, int64_t size, int protocol, unsigned char* s, int count) 
+{
+	int_to_bytes(s, src);
+	int_to_bytes(s+4, dest);
+	int_to_bytes(s+8, ports);
+	int_to_bytes(s+12, protocol);
+	int_to_bytes(s+16, count);
+	int64_to_bytes(s+20, size);
+}
+
 static void* lambda_communication_thread(void* input)
 {
     socklen_t serverlen = 0;
@@ -252,9 +262,14 @@ int main(int argc, char **argv) {
         usleep(60 * 1000);
         pthread_mutex_lock(&lock);
         printf("### Main process adding lambda events in the queue \n");
-        unsigned char s[18];
-        memcpy(s, "Added Event - ACK\0", 18);
-        struct event* newEvent = make_event(1, s, 1, 18);
+        unsigned char *s = malloc(28*sizeof(unsigned char));
+		  if(!s)
+            return -1;
+
+		  request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
+        print_byte_array(s, 28); 
+        //memcpy(s, "Added Event - ACK\0", 18);
+        struct event* newEvent = make_event(2, s, 1, 28);
         insert_in_list(eventsQACK, newEvent);
         
         pthread_mutex_unlock(&lock);

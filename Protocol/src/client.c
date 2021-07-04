@@ -327,6 +327,19 @@ void int_to_bytes(unsigned char* bytes, unsigned long n)
 }
 
 
+void int64_to_bytes(unsigned char* bytes, unsigned long n)
+{
+    bytes[0] = (n >> 56) & 0xFF;
+    bytes[1] = (n >> 48) & 0xFF;
+    bytes[2] = (n >> 40) & 0xFF;
+    bytes[3] = (n >> 32) & 0xFF;
+    bytes[4] = (n >> 24) & 0xFF;
+    bytes[5] = (n >> 16) & 0xFF;
+    bytes[6] = (n >> 8) & 0xFF; 
+    bytes[7] = n & 0xFF;
+}
+
+
 void print_description_struct(struct pdescription *d)
 {
     //log_info("\t\t Length of description: ");

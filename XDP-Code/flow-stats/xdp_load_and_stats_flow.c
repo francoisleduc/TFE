@@ -65,6 +65,17 @@ void error(char *msg) {
 }
 
 
+static void request_forge_flow_packet(int src, int dest, int ports, int64_t size, int protocol, unsigned char* s, int count) 
+{
+	int_to_bytes(s, src);
+	int_to_bytes(s+4, dest);
+	int_to_bytes(s+8, ports);
+	int_to_bytes(s+12, protocol);
+	int_to_bytes(s+16, count);
+	int64_to_bytes(s+20, size);
+}
+
+
 int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
 {
 	struct bpf_map *map;
@@ -81,36 +92,10 @@ int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
 	return map_fd;
 }
 
-
-void add_custom_event(int id)
-{
-    /* To avoid race conditions when adding events to a queue that is used 
-    *  by both the communication thread and the polling thread 
-    * 
-    */
-    pthread_mutex_lock(&lock);
-        
-    unsigned char s[20] = {0};
-    memcpy(s, "Added Event for now\0", 20);
-    if(id == 1)
-    {
-        struct event* newEvent = make_event(id, s, 1, 20);
-        insert_in_list(eventsQACK, newEvent);
-    }
-    else
-    {
-        struct event* newEvent = make_event(id, s, 0, 20);
-        insert_in_list(eventsQNOACK, newEvent);
-    }
-    pthread_mutex_unlock(&lock);
-	return;
-}
-
-
 static void stats_print_header()
 {
 	/* Print stats "header" */
-	printf("%-12s\n", "XDP\n");
+	printf("%-12s\n", "XDP-2\n");
 }
 
 
@@ -119,46 +104,49 @@ static void stats_print()
 
 	stats_print_header(); /* Print stats "header" */
 
-	
-	char *fmt = "%-12s %'11lld pkts"
-		" %'11lld bytes "
-		" %'11lld Nb. SYN+ACK "
-		" %'11lld Cumulativ. tcp payload bytes ";
-
 }
 
-
-static bool stats_collect(int map_fd, __u32 map_type)
-{
-
-	__u32 key = 0;
-	return true;
-}
 
 static void stats_poll(int map_fd, __u32 map_type, int interval)
 {
 	
-	struct flow_meta *v;
-	bool flag_pkts = false;
-	//bool flag_bytes = false; // uncomment if needed
-
+	struct flow_meta *v = (struct flow_meta*)malloc(sizeof(struct flow_meta));
 	/* Get initial reading quickly */
 
 	while (1) 
 	{
-		//bpf_map_lookup_elem(map_fd, &key, rec);
-		//stats_collect(map_fd, map_type);
 		stats_print();
 		for(int i = 0; i < MAX_MAP_SIZE; i++)
 		{
-			bpf_map_lookup_elem(map_fd, &i, v);
+			if(bpf_map_lookup_elem(map_fd, &i, v) != 0)
+			{
+				fprintf(stderr,
+				"ERR: bpf_map_lookup_elem failed key:0x%X\n", i);
+				break;
+			}
    		if(!v)
+			{
+				fprintf(stderr,
+				"ERR: Not value for v \n");
    			continue;
-			else
+			}			
+ 			else
 			{
 				if(v->count > 0)
 				{
-					printf("Flow ip src: %d , ip dst: %d , tot_bytes: %llu , tot_packets %d \n", v->src, v->dst, v->bytes, v->count);
+					pthread_mutex_lock(&lock);
+					printf("Flow ip src: %d , ip dst: %d , tot_bytes: %llu , tot_packets %d , ports %d \n", v->src, v->dst, v->bytes, v->count, v->ports);
+					unsigned char *s = malloc(28*sizeof(unsigned char));
+		  			if(!s)
+            		return;
+					
+		  			//request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
+					request_forge_flow_packet(v->src, v->dst, v->ports, v->bytes, v->protocol, s, v->count);
+        			print_byte_array(s, 28); 
+					struct event* newEvent = make_event(2, s, 1, 28);
+					insert_in_list(eventsQACK, newEvent);
+
+					pthread_mutex_unlock(&lock);
 					// Add new event 
 				}
 			}
@@ -463,7 +451,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    //pthread_create(&tid, NULL, lambda_communication_thread, (void *)in); // This thread is dedicated communicate with the lambda server
+    pthread_create(&tid, NULL, lambda_communication_thread, (void *)in); // This thread is dedicated communicate with the lambda server
 
     
 	 stats_poll(stats_map_fd, info.type, interval);
