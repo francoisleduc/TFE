@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <netdb.h> 
-
+#include <time.h>
 /* End includes for UDP packets */
 #include <getopt.h>
 
@@ -15,7 +15,6 @@
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
-
 #include <net/if.h>
 #include <linux/if_link.h> /* depend on kernel-headers installed */
 #include <pthread.h>  // pthread 
@@ -116,6 +115,8 @@ static void stats_poll(int map_fd, __u32 map_type, int interval)
 	while (1) 
 	{
 		stats_print();
+        struct timespec t;
+        clock_gettime(CLOCK_MONOTONIC, &t);
 		for(int i = 0; i < MAX_MAP_SIZE; i++)
 		{
 			if(bpf_map_lookup_elem(map_fd, &i, v) != 0)
@@ -124,30 +125,34 @@ static void stats_poll(int map_fd, __u32 map_type, int interval)
 				"ERR: bpf_map_lookup_elem failed key:0x%X\n", i);
 				break;
 			}
-   		if(!v)
+   		    if(!v)
 			{
 				fprintf(stderr,
 				"ERR: Not value for v \n");
-   			continue;
+   			    continue;
 			}			
  			else
 			{
 				if(v->count > 0)
 				{
-					pthread_mutex_lock(&lock);
-					printf("Flow ip src: %d , ip dst: %d , tot_bytes: %llu , tot_packets %d , ports %d \n", v->src, v->dst, v->bytes, v->count, v->ports);
-					unsigned char *s = malloc(28*sizeof(unsigned char));
-		  			if(!s)
-            		return;
-					
-		  			//request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
-					request_forge_flow_packet(v->src, v->dst, v->ports, v->bytes, v->protocol, s, v->count);
-        			print_byte_array(s, 28); 
-					struct event* newEvent = make_event(2, s, 1, 28);
-					insert_in_list(eventsQACK, newEvent);
+                    // Send new flow entries or refreshed ones only to avoid network overload caused by too many events
+                    if((t.tv_sec * 1000000000) + t.tv_nsec - NANO_GAP <  v->timestamp_last_m)
+                    {
+                        pthread_mutex_lock(&lock);
+                        printf("Flow ip src: %d , ip dst: %d , tot_bytes: %llu , tot_packets %d , ports %d \n", v->src, v->dst, v->bytes, v->count, v->ports);
+                        unsigned char *s = malloc(28*sizeof(unsigned char));
+                        if(!s)
+                        return;
+                        
+                        //request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
+                        request_forge_flow_packet(v->src, v->dst, v->ports, v->bytes, v->protocol, s, v->count);
+                        print_byte_array(s, 28); 
+                        struct event* newEvent = make_event(2, s, 1, 28);
+                        insert_in_list(eventsQACK, newEvent);
 
-					pthread_mutex_unlock(&lock);
-					// Add new event 
+                        pthread_mutex_unlock(&lock);
+                        // Add new event 
+                    }
 				}
 			}
 		}

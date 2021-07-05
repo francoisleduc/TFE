@@ -202,15 +202,16 @@ int process_packet(struct xdp_md *ctx)
 
    if(v->count == 0)
 	{
-      bpf_debug("First time flow entry used \n");
+        bpf_debug("First time flow entry used \n");
  		v->src = f.src;
-   	v->dst = f.dst;
-   	v->ports = f.ports;
-   	v->protocol = f.protocol;
+   	    v->dst = f.dst;
+   	    v->ports = f.ports;
+   	    v->protocol = f.protocol;
 		v->timestamp_start = bpf_ktime_get_ns();
 		v->timestamp_last_m = bpf_ktime_get_ns();
-   	__sync_fetch_and_add(&v->count, 1);
+   	    __sync_fetch_and_add(&v->count, 1);
 		__sync_fetch_and_add(&v->bytes, (data_end - data));
+		bpf_debug("Time of flow last modification %ld \n", v->timestamp_last_m);
    }
    else
 	{
@@ -231,9 +232,9 @@ int process_packet(struct xdp_md *ctx)
 				// flow too old since last update - reuse entry
 				bpf_debug("Reuse old entry \n");
 				v->src = f.src;
-   			v->dst = f.dst;
-   			v->ports = f.ports;
-   			v->protocol = f.protocol;
+   			    v->dst = f.dst;
+   			    v->ports = f.ports;
+   			    v->protocol = f.protocol;
 				v->timestamp_start = bpf_ktime_get_ns();
 				v->timestamp_last_m = bpf_ktime_get_ns();
 				__sync_fetch_and_add(&v->bytes, - v->bytes);
@@ -251,7 +252,7 @@ int process_packet(struct xdp_md *ctx)
    
 	bpf_debug("Count for key:%d , count: %d \n", key, v->count);
 	bpf_debug("Size for key:%d , size: %d bytes \n", key, v->bytes);
-   bpf_debug("Ports: %u %u \n", f.port16[0], f.port16[1]);
+    bpf_debug("Ports: %u %u \n", f.port16[0], f.port16[1]);
 	//bpf_debug("Ports ports: %d \n", f.ports);
    //bpf_debug("Protocol : %d \n", f.protocol);
 	//bpf_debug("Time of last flow update: %llu \n", v->timestamp_last_m);
