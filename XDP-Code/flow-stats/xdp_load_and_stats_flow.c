@@ -214,7 +214,7 @@ static void* lambda_communication_thread(void* input)
     bool t = true;
     int nbevents = 0;
 
-    int msec = 0, trigger1 = 500, trigger2 = 1000; /* 500ms */ /* and */ /* 1000ms */
+    int msec = 0, trigger1 = 1000, trigger2 = 2000; /* 500ms */ /* and */ /* 1000ms */
     clock_t before1 = clock(); // associated to trigger1
     clock_t before2 = clock(); // associated to trigger2
 

@@ -32,6 +32,19 @@ int64_t bytes_to_int64(const unsigned char* bytes)
     return a;
 }
 
+// Read 16bits from int32
+int get_src_port(const int ports)
+{
+    int src = ports >> 16;
+    return src;
+}
+
+int get_dst_port(const int ports)
+{
+    int dst = ports & 0x0000FFFF;
+    return dst;
+}
+
 Server::Server(int port, char* address, unordered_map<int, string> m)
 {
     this->portno = port;
@@ -104,33 +117,37 @@ pair<socklen_t, struct sockaddr_in> Server::send(const unsigned char* buf, sockl
 }
 
 
-void Server::execute_lambda_function(int eventid)
+void Server::execute_lambda_function_id2(int src, int dst, int srcport, int dstport, int protocol, int count, int64_t size)
 {
 
+    string s = to_string(src);
+    string d = to_string(dst);
+    string sp = to_string(srcport);
+    string dp = to_string(dstport);
+    string pro = to_string(protocol);
+    string c = to_string(count);
+    string si = to_string(size);
+
     const char* path = "/api/v1/namespaces/default/services/";
-    const char* serviceName = this->ev_lam_map[eventid].c_str();
+    const char* serviceName = this->ev_lam_map[2].c_str();
     const char* end = ":http-function-port/proxy/";
     httplib::Client cli("localhost", 8001);
-    httplib::Params params
-    {
-        { "data", "This is sent from the lambda server to the cluster for exectution via http trigger, if sent back then function is working" }
-    };
 
+    string jsonStringified = "{\"srcip\":" + s + ", " + "\"dstip\":" + d + ", " + "\"srcport\":" + sp + ", " + "\"dstport\":" + dp + ", " +
+        "\"protocol\":" + pro + ", " + "\"count\":" + c + ", " + "\"size\":" + si + "}";
 
     char result[BUFSIZE];   // array to hold the result.
     bzero(result, BUFSIZE);
     strcat(result, path);
     strcat(result, (char*)serviceName); // copy string one into the result.
     strcat(result, end);
-
-    //cout << "FULL URL: " << result << endl;
+    cout << "FULL URL: " << result << endl;
     // hello is the service deployed corresponding to the lambda function 
-    auto p = cli.Post(result, params);
+    auto p = cli.Post(result, jsonStringified, "application/json");
 
     // Output the response of the lambda function 
     cout << "Status code : " << p->status << endl;
-    //cout << "Text : " << p->body << endl;
-    cout << "total_events : " << total_events << endl;
+    cout << "Text : " << p->body << endl;
 }
 
 
@@ -157,13 +174,16 @@ int Server::process_description_event_id2(struct pdescription* d, unsigned char*
     memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S, d->textlen);
 
     int src = bytes_to_int(d->textd);
-    int dest = bytes_to_int((d->textd)+4);
+    int dst = bytes_to_int((d->textd)+4);
     int ports = bytes_to_int((d->textd)+8);
     int protocol = bytes_to_int((d->textd)+12);
     int count = bytes_to_int((d->textd)+16);
     int64_t size = bytes_to_int64((d->textd)+20);
-    printf("Received: src: %d , dst: %d , ports %d , protocol %d , count %d , size %ld \n", src, dest, ports, protocol, count, size);
-    //execute_lambda_function(1);
+
+    int dstp = get_dst_port(ports);
+    int srcp = get_src_port(ports);
+    printf("Received: src: %d , dst: %d , ports %d , protocol %d , count %d , size %ld \n", src, dst, ports, protocol, count, size);
+    execute_lambda_function_id2(src, dst, srcp, dstp, protocol, count, size);
 
 	// print description to show event was correctly sent from switch to lambda server
 	 
@@ -203,10 +223,9 @@ struct respacket* Server::process_packet(unsigned char* buf)
                 hasToBeAck = d->ack[0] & 1; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
                 break;
             case 2:
-                hasToBeAck = 1;
                 dlen = process_description_event_id2(d, buf+index);
-                //hasToBeAck = d->ack[0] & 1;
-					 cout << "Received id 2 " << endl;
+                hasToBeAck = 1;
+			    cout << "Received id 2 " << endl;
                 break;
             case 3:
                 // id 3
