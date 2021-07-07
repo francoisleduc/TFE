@@ -30,8 +30,8 @@
 #include "../protocol/client.h"
 
 
-static const char *default_filename = "xdp_prog_kern_flow.o";
-static const char *default_progsec = "xdp_flow";
+static const char *default_filename = "xdp_prog_kern_port.o";
+static const char *default_progsec = "xdp_port";
 
 
 static const struct option_wrapper long_options[] = {
@@ -63,15 +63,15 @@ void error(char *msg) {
     exit(0);
 }
 
-
-static void request_forge_flow_packet(int src, int dest, int ports, int64_t size, int protocol, unsigned char* s, int count) 
+// 24
+static void request_forge_scan_packet(int src, int dest, int dstport, int protocol, unsigned char* s, int empty_udp, int nbsyn) 
 {
 	int_to_bytes(s, src);
 	int_to_bytes(s+4, dest);
-	int_to_bytes(s+8, ports);
+	int_to_bytes(s+8, dstport);
 	int_to_bytes(s+12, protocol);
-	int_to_bytes(s+16, count);
-	int64_to_bytes(s+20, size);
+	int_to_bytes(s+16, empty_udp);
+	int64_to_bytes(s+20, nbsyn);
 }
 
 
@@ -94,7 +94,7 @@ int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
 static void stats_print_header()
 {
 	/* Print stats "header" */
-	printf("%-12s\n", "XDP-2\n");
+	printf("%-12s\n", "XDP-3\n");
 }
 
 
@@ -105,11 +105,11 @@ static void stats_print()
 
 }
 
-
+// TODO: MODIFY 
 static void stats_poll(int map_fd, int interval)
 {
 	
-	struct flow_meta *v = (struct flow_meta*)malloc(sizeof(struct flow_meta));
+	struct scan *v = (struct scan*)malloc(sizeof(struct scan));
 	/* Get initial reading quickly */
 
 	while (1) 
@@ -133,27 +133,25 @@ static void stats_poll(int map_fd, int interval)
 			}			
  			else
 			{
-				if(v->count > 0)
-				{
-                    // Send new flow entries or refreshed ones only to avoid network overload caused by too many events
+                if(v->csyn > 0 || v->crst > 0 || v->empty_udp > 0)
+                {
                     if((t.tv_sec * 1000000000) + t.tv_nsec - NANO_GAP <  v->timestamp_last_m)
                     {
+                        printf("ip src: %d , ip dst: %d , dstports %d , count-syn %d , count-rst %d , empty_udp %d \n", v->src, v->dst, v->dstport, v->csyn, v->crst, v->empty_udp);        
                         pthread_mutex_lock(&lock);
-                        printf("Flow ip src: %d , ip dst: %d , tot_bytes: %llu , tot_packets %d , ports %d \n", v->src, v->dst, v->bytes, v->count, v->ports);
-                        unsigned char *s = malloc(28*sizeof(unsigned char));
+                        unsigned char *s = malloc(24*sizeof(unsigned char));
                         if(!s)
                             return;
-                        
-                        request_forge_flow_packet(v->src, v->dst, v->ports, v->bytes, v->protocol, s, v->count);
-                        print_byte_array(s, 28); 
-                        struct event* newEvent = make_event(2, s, 1, 28);
+                        request_forge_scan_packet(v->src, v->dst, v->dstport, v->protocol, s, v->empty_udp, v->csyn);
+                        print_byte_array(s, 24);
+                        struct event* newEvent = make_event(1, s, 1, 24);
                         insert_in_list(eventsQACK, newEvent);
-
+                        free(s);
                         pthread_mutex_unlock(&lock);
-                        // Add new event 
                     }
-				}
-			}
+                    
+                }
+            }
 		}
 		sleep(interval); // so that user space does not poll constantly but every 2seconds for example
 	} // end while 
@@ -408,7 +406,7 @@ int main(int argc, char **argv)
 
 
 	// Look for map file, file descriptor
-	stats_map_fd = find_map_fd(bpf_obj, "flow_map");
+	stats_map_fd = find_map_fd(bpf_obj, "port_map");
 	if (stats_map_fd < 0) 
 	{ // could not find map fd
 		xdp_link_detach(cfg.ifindex, cfg.xdp_flags, 0);
@@ -417,7 +415,7 @@ int main(int argc, char **argv)
 
 	/* check map info, e.g. datarec is expected size */
 	map_expect.key_size    = sizeof(__u32);
-	map_expect.value_size  = sizeof(struct flow_meta);
+	map_expect.value_size  = sizeof(struct scan);
 	map_expect.max_entries = MAX_MAP_SIZE;
 	err = __check_map_fd_info(stats_map_fd, &info, &map_expect);
 	if (err) 

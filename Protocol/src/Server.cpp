@@ -155,11 +155,17 @@ int Server::process_description_event_id1(struct pdescription* d, unsigned char*
 {
     memcpy(d->ack, buf+DLENGTH_S+EVENTID_S, ACK_S);
     d->textlen = bytes_to_int(d->len) - DESCRI_HEADER_SIZE;
-    //d->textd = (unsigned char*) malloc(d->textlen*sizeof(unsigned char));
     d->textd = new unsigned char[d->textlen];
     memcpy(d->textd, buf+DLENGTH_S+EVENTID_S+ACK_S, d->textlen);
 
+    int src = bytes_to_int(d->textd);
+    int dst = bytes_to_int((d->textd)+4);
+    int dstport = bytes_to_int((d->textd)+8);
+    int protocol = bytes_to_int((d->textd)+12);
+    int nbempty_udp = bytes_to_int((d->textd)+16);
+    int nbsyn = bytes_to_int((d->textd)+20);
 
+    printf("Received: src: %d , dst: %d , port %d , protocol %d , nbempty %d , nbsyn %d \n", src, dst, dstport, protocol, nbempty_udp, nbsyn);
     //execute_lambda_function(1);
     return (d->textlen + DESCRI_HEADER_SIZE);
 }

@@ -52,7 +52,7 @@ LIBS = -l:libbpf.a -lelf $(USER_LIBS)
 PROTO=protocol-dep
 EXPORT_SIMU=copynet
 
-all: $(PROTO) llvm-check $(USER_TARGETS) $(XDP_OBJ) $(COPY_LOADER) $(COPY_STATS) $(EXPORT_SIMU)
+all: $(PROTO) llvm-check $(USER_TARGETS) $(XDP_OBJ) $(COPY_LOADER) $(COPY_STATS)
 
 .PHONY: clean $(CLANG) $(LLC)
 
@@ -65,10 +65,15 @@ clean:
 	rm -f *.ll
 	rm -f *~
 
-$(EXPORT_SIMU):
+flow:
 	cp -f xdp_load_and_stats_flow ../netsimulation/
 	cp -f xdp_prog_kern_flow.o ../netsimulation/
 	cp -f xdp_prog_kern_flow.ll ../netsimulation/
+
+port:
+	cp -f xdp_load_and_stats_port ../netsimulation/
+	cp -f xdp_prog_kern_port.o ../netsimulation/
+	cp -f xdp_prog_kern_port.ll ../netsimulation/
 
 $(PROTO):
 	$(MAKE) -C $(PROTO_DIR) all
