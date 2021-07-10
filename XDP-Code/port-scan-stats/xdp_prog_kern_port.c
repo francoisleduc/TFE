@@ -83,9 +83,12 @@ static __always_inline bool parse_tcp(void *data, __u64 off, void *data_end,
 		bpf_debug("tcp syn: %d \n", tcp->syn);
 	}
 	
-	//bpf_debug("tcp ack: %d \n", tcp->ack);
-	//bpf_debug("tcp rst: %d \n", tcp->rst);
-	bpf_debug("next\n");
+	if(tcp->rst == 1)
+	{
+		f->crst++;
+		bpf_debug("tcp rst: %d \n", tcp->rst);
+
+	}
 	return true;
 }
 
@@ -140,7 +143,7 @@ int process_packet(struct xdp_md *ctx)
 	__u32 hash;
 	__u32 key;
 	__u32 off;
-	bpf_debug("XDP_PORT\n");
+	bpf_debug("XDP_PORTTT\n");
 	/* determine hashing mode using map lookup */
 	key = 0;
 	jhash = true;
@@ -263,13 +266,6 @@ int process_packet(struct xdp_md *ctx)
 			}
 		}
 	}
-   
-	//bpf_debug("Count for key:%d , csyn count: %d \n", key, v->csyn);
-    //bpf_debug("Destination port: %d \n", f.dstport);
-	//bpf_debug("Ports ports: %d \n", f.ports);
-    //bpf_debug("Protocol : %d \n", f.protocol);
-	//bpf_debug("Time of last flow update: %llu \n", v->timestamp_last_m);
-
 	return XDP_PASS;
 }
 char _license[] SEC("license") = "GPL";

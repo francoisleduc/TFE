@@ -64,14 +64,15 @@ void error(char *msg) {
 }
 
 // 24
-static void request_forge_scan_packet(int src, int dest, int dstport, int protocol, unsigned char* s, int empty_udp, int nbsyn) 
+static void request_forge_scan_packet(int src, int dest, int dstport, int protocol, unsigned char* s, int empty_udp, int nbsyn, int nbrst) 
 {
 	int_to_bytes(s, src);
 	int_to_bytes(s+4, dest);
 	int_to_bytes(s+8, dstport);
 	int_to_bytes(s+12, protocol);
 	int_to_bytes(s+16, empty_udp);
-	int64_to_bytes(s+20, nbsyn);
+	int_to_bytes(s+20, nbsyn);
+    int_to_bytes(s+24, nbrst);
 }
 
 
@@ -137,16 +138,15 @@ static void stats_poll(int map_fd, int interval)
                 {
                     if((t.tv_sec * 1000000000) + t.tv_nsec - NANO_GAP <  v->timestamp_last_m)
                     {
-                        printf("ip src: %d , ip dst: %d , dstports %d , count-syn %d , count-rst %d , empty_udp %d \n", v->src, v->dst, v->dstport, v->csyn, v->crst, v->empty_udp);        
                         pthread_mutex_lock(&lock);
-                        unsigned char *s = malloc(24*sizeof(unsigned char));
+                        printf("IP src: %d , ip dst: %d , dstports %d , count-syn %d , count-rst %d , empty_udp %d \n", v->src, v->dst, v->dstport, v->csyn, v->crst, v->empty_udp);        
+                        unsigned char *s = malloc(28*sizeof(unsigned char));
                         if(!s)
                             return;
-                        request_forge_scan_packet(v->src, v->dst, v->dstport, v->protocol, s, v->empty_udp, v->csyn);
-                        print_byte_array(s, 24);
-                        struct event* newEvent = make_event(1, s, 1, 24);
+                        request_forge_scan_packet(v->src, v->dst, v->dstport, v->protocol, s, v->empty_udp, v->csyn, v->crst);
+                        print_byte_array(s, 28);
+                        struct event* newEvent = make_event(1, s, 1, 28);
                         insert_in_list(eventsQACK, newEvent);
-                        free(s);
                         pthread_mutex_unlock(&lock);
                     }
                     

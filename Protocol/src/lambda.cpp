@@ -15,6 +15,20 @@
 
 extern int total_events;
 
+
+void print_byte_array(unsigned char* buf, int x) 
+{
+    int i;
+    for (i = 0; i < x; i++)
+    {
+        if (i > 0) printf(":");
+        printf("%02X", (unsigned char)buf[i]);
+    }
+    printf("\n");
+}
+
+
+
 int main(int argc, char** argv) {
     int portno; /* port to listen on */
     socklen_t clientlen; /* byte size of client's address */
@@ -83,6 +97,7 @@ int main(int argc, char** argv) {
         double rd = drand48();
         if ((droprate < rd) && responding) 
         {
+            print_byte_array(buf, 28);
             struct respacket *rp = s->process_packet(buf);
             if (!rp) 
             {

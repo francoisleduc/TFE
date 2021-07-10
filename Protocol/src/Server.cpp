@@ -117,6 +117,40 @@ pair<socklen_t, struct sockaddr_in> Server::send(const unsigned char* buf, sockl
 }
 
 
+void Server::execute_lambda_function_id1(int src, int dst, int dstport, int protocol, int emptyudp, int nbsyn, int nbrst)
+{
+
+    string s = to_string(src);
+    string d = to_string(dst);
+    string dp = to_string(dstport);
+    string pro = to_string(protocol);
+    string udp = to_string(emptyudp);
+    string syn = to_string(nbsyn);
+    string nrs = to_string(nbrst);
+
+    const char* path = "/api/v1/namespaces/default/services/";
+    const char* serviceName = this->ev_lam_map[1].c_str();
+    const char* end = ":http-function-port/proxy/";
+    httplib::Client cli("localhost", 8001);
+
+    string jsonStringified = "{\"srcip\":" + s + ", " + "\"dstip\":" + d + ", " + "\"dstport\":" + dp + ", " +
+        "\"protocol\":" + pro + ", " + "\"udp\":" + udp + ", " + "\"syn\":" + syn + ", " + "\"rst\":" + nrs +"}";
+
+    char result[BUFSIZE];   // array to hold the result.
+    bzero(result, BUFSIZE);
+    strcat(result, path);
+    strcat(result, (char*)serviceName); // copy string one into the result.
+    strcat(result, end);
+    cout << "FULL URL: " << result << endl;
+    // hello is the service deployed corresponding to the lambda function 
+    auto p = cli.Post(result, jsonStringified, "application/json");
+
+    // Output the response of the lambda function 
+    cout << "Status code : " << p->status << endl;
+    cout << "Text : " << p->body << endl;
+}
+
+
 void Server::execute_lambda_function_id2(int src, int dst, int srcport, int dstport, int protocol, int count, int64_t size)
 {
 
@@ -164,9 +198,10 @@ int Server::process_description_event_id1(struct pdescription* d, unsigned char*
     int protocol = bytes_to_int((d->textd)+12);
     int nbempty_udp = bytes_to_int((d->textd)+16);
     int nbsyn = bytes_to_int((d->textd)+20);
+    int nbrst = bytes_to_int((d->textd)+24);
 
-    printf("Received: src: %d , dst: %d , port %d , protocol %d , nbempty %d , nbsyn %d \n", src, dst, dstport, protocol, nbempty_udp, nbsyn);
-    //execute_lambda_function(1);
+    printf("Received: src: %d , dst: %d , port %d , protocol %d , nbempty %d , nbsyn %d , nbrst: %d \n", src, dst, dstport, protocol, nbempty_udp, nbsyn, nbrst);
+    //execute_lambda_function_id1(src, dst, dstport, protocol, nbempty_udp, nbsyn, nbrst);
     return (d->textlen + DESCRI_HEADER_SIZE);
 }
 
@@ -226,7 +261,8 @@ struct respacket* Server::process_packet(unsigned char* buf)
         {
             case 1:
                 dlen = process_description_event_id1(d, buf+index);
-                hasToBeAck = d->ack[0] & 1; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
+                hasToBeAck = 1; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
+                cout << "Received id 1" << endl;
                 break;
             case 2:
                 dlen = process_description_event_id2(d, buf+index);

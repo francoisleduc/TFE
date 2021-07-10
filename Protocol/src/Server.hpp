@@ -62,6 +62,7 @@ class Server
         struct respacket* process_packet(unsigned char* buf);
         int process_description_event_id1(struct pdescription* d, unsigned char* buf);
         int process_description_event_id2(struct pdescription* d, unsigned char* buf);
+        void execute_lambda_function_id1(int src, int dst, int dstport, int protocol, int emptyudp, int nbsyn, int nbrst);
         void execute_lambda_function_id2(int src, int dst, int srcport, int dstport, int protocol, int count, int64_t size);
         static void free_packet_struct(struct spacket* p);
 };
