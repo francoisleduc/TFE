@@ -21,11 +21,10 @@
 * Maximum number of event per packet (not really an important parameter but this could be tweaked to avoid packet loss with
 * smaller packets overall
 */
-#define MAX_EVENT_P 50 
+#define MAX_EVENT_P 1000
 
 struct spacket{
     unsigned char version[VERSION_S];
-    unsigned char srcip[SRCIP_S];
     unsigned char sidentifier[SRCID_S];
     unsigned char seq[SEQ_S];
     unsigned char nbevents[NBEVENTS_S];
@@ -53,7 +52,6 @@ struct event{
 
 // Arguments passsed to initialize the thread communicating with lambda server(s)
 struct args {
-    unsigned char myip[SRCIP_S]; // The current device IP 
     char buf[BUFSIZE]; // The buffer used to read/write data
     char bufSecondary[BUFSIZE]; // The second buffer used to avoid erasing currently used data (two queues)
     int identifierNumber; // The unique ID of the device
@@ -72,7 +70,7 @@ void create_packet_buf(char* buf, struct spacket* p); // client only
 
 
 struct pdescription* create_description_struct(struct pdescription* d, int length, unsigned char* desc, unsigned char* ack, unsigned char *id, int descrilen);
-struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* srcip, unsigned char* version, int nbevents, int seq);
+struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* version, int nbevents, int seq);
 
 
 

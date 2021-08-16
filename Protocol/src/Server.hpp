@@ -28,7 +28,6 @@ struct pdescription{
 
 struct spacket{
     unsigned char version[VERSION_S];
-    unsigned char srcip[SRCIP_S];
     unsigned char sidentifier[SRCID_S];
     unsigned char seq[SEQ_S];
     unsigned char nbevents[NBEVENTS_S];

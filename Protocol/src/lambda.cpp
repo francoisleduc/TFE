@@ -84,6 +84,8 @@ int main(int argc, char** argv) {
 
     auto *s = new Server(portno, ip, configmap);
 
+    int counter_drop = 0;
+
     while (true) {
         bzero(buf, BUFSIZE);
         pair<socklen_t, struct sockaddr_in> p = s->receive(buf, clientlen, clientaddr); // Store original sender info
@@ -93,11 +95,10 @@ int main(int argc, char** argv) {
             cout << "Could not parse datagram source address " << __func__ << "+ " << __LINE__ << endl;
         cout << "server received datagram from " << hostaddrp << endl;
 
-
         double rd = drand48();
         if ((droprate < rd) && responding) 
         {
-            print_byte_array(buf, 28);
+            //print_byte_array(buf, BUFSIZE);
             struct respacket *rp = s->process_packet(buf);
             if (!rp) 
             {
@@ -118,6 +119,7 @@ int main(int argc, char** argv) {
                     cout << "Expected sequence number" << endl;
                     cout << "Switch id : " << receivedId << endl;
                 }
+                //print_byte_array(buf, BUFSIZE);
                 s->send(buf, p.first, p.second); // send back to original sender
             } 
             else 
@@ -127,6 +129,11 @@ int main(int argc, char** argv) {
 
             s->free_packet_struct(rp->parsed);
             delete(rp);
+        }
+        else
+        {
+            counter_drop++;
+            cout << "Packet dropped : " << counter_drop << endl;
         }
     } // end while server
 }

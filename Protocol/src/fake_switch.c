@@ -19,7 +19,8 @@ extern List* eventsQNOACK;
 extern pthread_mutex_t lock;
 extern bool terminated;
 extern int seqNB;
-
+int noack_p = 0;
+int counter_ack = 0;
 
 static void request_forge_flow_packet(int src, int dest, int ports, int64_t size, int protocol, unsigned char* s, int count) 
 {
@@ -38,7 +39,7 @@ static void* lambda_communication_thread(void* input)
     bool t = true;
     int nbevents = 0;
 
-    int msec = 0, trigger1 = 1000, trigger2 = 2000; /* 500ms */ /* and */ /* 1000ms */
+    int msec = 0, retrans = 500, trigger1 = 2000, trigger2 = 2000; /* 500ms */ /* and */ /* 1000ms */
     clock_t before1 = clock(); // associated to trigger1
     clock_t before2 = clock(); // associated to trigger2
 
@@ -61,18 +62,17 @@ static void* lambda_communication_thread(void* input)
     flags |= O_NONBLOCK;
     fcntl(((struct args*)input)->sockfd, F_SETFL, flags);
 
-    int counter = nbevents;
+    counter_ack = nbevents;
     while(t)
     {
-        if(counter > 70)
-            break; // testing purposes 
         clock_t difference1 = clock() - before1;
         msec = difference1 * 1000 / CLOCKS_PER_SEC;
-        if(msec > trigger1 && nbevents > 0)
+        if(msec > retrans && nbevents > 0)
         {
             // Resend because timer expired and still did not receive an ACK for the last packet 
             log_info("Timer alert: Retransmission of last packet \n");
             serverlen = sizeof(((struct args*)input)->serveraddr);
+            //print_byte_array((unsigned char*) ((struct args*)input)->buf, BUFSIZE);
             n = sendto(((struct args*)input)->sockfd, (const char*) ((struct args*)input)->buf, BUFSIZE, 0, 
                 (struct sockaddr *)&(((struct args*)input)->serveraddr), serverlen);
             if (n < 0)
@@ -91,9 +91,7 @@ static void* lambda_communication_thread(void* input)
             //log_info("Timer alert: Sending now because queue was empty last time \n");
             nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
             before1 = clock();
-            counter = counter + nbevents;
-            printf("COUNTER EVENTS %d \n", counter);
-
+            counter_ack += nbevents;
         }
 
 
@@ -102,29 +100,38 @@ static void* lambda_communication_thread(void* input)
         */
         clock_t difference2 = clock() - before2;
         msec = difference2 * 1000 / CLOCKS_PER_SEC;
+        //printf("msec: %d , trigger2 %d \n", msec, trigger2);
         if(msec > trigger2)
         {
-            //log_info("Timer alert: Sending from non essential queue \n");
-            bzero(((struct args*)input)->bufSecondary, BUFSIZE);
-            int noa = send_new(pts, (struct args*) input, lock, selectedEvtsNoAck, serverlen, false);
-            if(noa > 0)
-            {
-                pthread_mutex_lock(&lock);
-                free_buffer_waiting_events(selectedEvtsNoAck, eventsQNOACK);
-                pthread_mutex_unlock(&lock);
-            }
-            
+            printf("Start burst \n");
             before2 = clock();
+            do 
+            {
+                bzero(((struct args*)input)->bufSecondary, BUFSIZE);
+                int noa = send_new(pts, (struct args*) input, lock, selectedEvtsNoAck, serverlen, false);
+                if(noa > 0)
+                {
+                    pthread_mutex_lock(&lock);
+                    noack_p += noa;
+                    free_buffer_waiting_events(selectedEvtsNoAck, eventsQNOACK);
+                    pthread_mutex_unlock(&lock);
+                }
+            }
+            while(get_list_size(eventsQNOACK) > 0);
+            //log_info("Timer alert: Sending from non essential queue \n");
+            printf("End burst \n");
         }
         
         /* print the server's reply */
         n = recvfrom(((struct args*)input)->sockfd, ((struct args*)input)->buf, BUFSIZE, O_NONBLOCK, 
             (struct sockaddr *)&(((struct args*)input)->serveraddr), &serverlen);
 
-        if (n > 0 && n <= 1024)
+        if (n > 0 && n <= BUFSIZE)
         {
             if(((struct args*)input)->buf[0] == 'A' && ((struct args*)input)->buf[1] == 'C' && ((struct args*)input)->buf[2] == 'K')
             {
+                before1 = clock();
+                //before2 = clock();
                 pthread_mutex_lock(&lock);
                 free_buffer_waiting_events(selectedEvts, eventsQACK); // remove from Q and selectedEvts array
                 pthread_mutex_unlock(&lock);
@@ -135,17 +142,13 @@ static void* lambda_communication_thread(void* input)
 
                 bzero(((struct args*)input)->buf, BUFSIZE);
                 nbevents = send_new(pts,(struct args*) input, lock, selectedEvts, serverlen, true);
-                before1 = clock();
-                before2 = clock();
+                
 
-                counter = counter + nbevents;
-                printf("COUNTER EVENTS %d \n", counter);
-
+                counter_ack += nbevents;
             }
         }
     }
 
-    printf("COUNTER EVENTS %d \n", counter);
     free(selectedEvts);
     free(selectedEvtsNoAck);
 
@@ -199,7 +202,7 @@ int main(int argc, char **argv) {
     /* send the message to the server */
     
     /* Create a fake list of events to be sent periodically to the lambda server */
-    unsigned char myip[SRCIP_S] = {0x7F, 0x0, 0x0, 0x1}; // this should be from a config file for each device 
+    //unsigned char myip[SRCIP_S] = {0x7F, 0x0, 0x0, 0x1}; // this should be from a config file for each device 
     int identifierNumber = 210; // same 210 was taken as an example but should correspond to some kind of mapping id -> (device name, interface)
     unsigned char version[VERSION_S] = {0x1}; // same v1.0
 
@@ -208,14 +211,14 @@ int main(int argc, char **argv) {
     
 
     /**** Do not to include in XDP ****/
-    int nb = 10;
+    /*int nb = 10;
     for(int i = 0; i < nb; i++)
     {
         unsigned char s[28];
         memcpy(s, "My event needs an ack - ACK\0", 28);
         struct event* newEvent = make_event(1, s, 1, 28);
         insert_in_list(eventsQACK, newEvent);
-    }
+    }*/
     
     /*
     for(int i = 0; i < nb/2; i++)
@@ -235,7 +238,6 @@ int main(int argc, char **argv) {
     in->sockfd = sockfd;
     memcpy(in->buf, buf, BUFSIZE);
     memcpy(in->bufSecondary, bufSecondary, BUFSIZE);
-    memcpy(in->myip, myip, SRCIP_S);
     in->identifierNumber = identifierNumber;
     memcpy(in->version, version, VERSION_S);
     in->serveraddr = serveraddr;
@@ -251,31 +253,61 @@ int main(int argc, char **argv) {
 
 
     /* Do not include in XDP */
+    int half_sec_counter = 0;
 
-    usleep(300 * 1000);
+    usleep(30 * 1000);
+    FILE* fptr = fopen("noack_1000_data.csv","w");
+    if(fptr == NULL)
+    {
+        printf("Error!");   
+        exit(1);             
+    }
+    
+    fprintf(fptr,"queue_size, nb_events_sent, nb_bytes_sent \n"); // header 
+
     while(1)
     {
         /* This loop plays the role of the polling system on the switch which is responsible every x miliseconds to check if conditions
         are met to trigger lambda events and thus send them to the lambda server 
         NB: Normally this is in this same loop that we add events too but for now they are pre-loaded for testing purposes
         */
-        usleep(60 * 1000);
-        pthread_mutex_lock(&lock);
-        printf("### Main process adding lambda events in the queue \n");
-        unsigned char *s = malloc(28*sizeof(unsigned char));
-		  if(!s)
-            return -1;
+        half_sec_counter++;
+        usleep(500000);
+        printf("Size of standard queue : %ld \n", get_list_size(eventsQNOACK));
+        printf("Number of standard event sent : %d \n", noack_p);
+        printf("Number of standard bytes sent : %d \n", noack_p*28);
+        printf("\n\n");
+        printf("Size of Acknowledgment queue : %ld \n", get_list_size(eventsQACK));
+        printf("Number of Acknowledgment event sent : %d \n", counter_ack);
+        printf("Number of Acknowledgment bytes sent : %d \n", counter_ack*28);
+        printf("Time elapsed: %f \n", half_sec_counter*0.5);
 
-		  request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
-        print_byte_array(s, 28); 
-        //memcpy(s, "Added Event - ACK\0", 18);
-        struct event* newEvent = make_event(2, s, 1, 28);
-        insert_in_list(eventsQACK, newEvent);
+        fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQNOACK), noack_p, noack_p*28);
+        //fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQACK), counter_ack, counter_ack*28);
+
+        printf("----------------------------------\n\n\n\n");
+        pthread_mutex_lock(&lock);
+
+        for(int j = 0; j < 500; j++)
+        {
+            //printf("### Main process adding lambda events in the queue \n");
+            unsigned char *s = malloc(28*sizeof(unsigned char));
+              if(!s)
+                return -1;
+
+            request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
+            //print_byte_array(s, 28);
+            struct event* newEvent = make_event(2, s, 0, 28); // change 1 to 0 or 0 to 1 to put ACK flag 
+            insert_in_list(eventsQNOACK, newEvent); // change queue type to fit correct event 
+        }
         
         pthread_mutex_unlock(&lock);
         
-        if(terminated)
-            break;
+        if(half_sec_counter >= 60)
+        {
+            fclose(fptr);
+            exit(1);
+        }
     }
     /* End of do not include in XDP */
 
