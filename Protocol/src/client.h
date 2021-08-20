@@ -74,7 +74,7 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* v
 
 
 
-int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
+int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, pthread_mutex_t lock_non_ack,
     struct event** selectedEvts, socklen_t serverlen, bool tag);
 
 

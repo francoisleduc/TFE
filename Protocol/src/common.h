@@ -5,7 +5,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define BUFSIZE 1300
+#define BUFSIZE 1402
 
 
 #define VERSION_S 1

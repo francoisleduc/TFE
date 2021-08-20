@@ -14,7 +14,8 @@
 List* eventsQACK = NULL;
 List* eventsQNOACK = NULL;
 
-pthread_mutex_t lock;
+pthread_mutex_t lock_ack;
+pthread_mutex_t lock_non_ack;
 
 bool terminated = false;
 
@@ -246,17 +247,22 @@ void create_packet_buf(char* buf, struct spacket* p) {
 }
 
 
-int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
+int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock_ack, pthread_mutex_t lock_non_ack,
     struct event** selected, socklen_t serverlen, bool tag)
 {
 
     char* b;
     if(tag)
+    {
         b = input->buf;
+        pthread_mutex_lock(&lock_ack);
+    }
     else
+    {
         b = input->bufSecondary;
+        pthread_mutex_lock(&lock_non_ack);
+    }
 
-    pthread_mutex_lock(&lock);
     int n = 0;
     int nbevents = 0;
     
@@ -287,7 +293,12 @@ int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock,
         //log_info("Send new packets from Q but no events is available \n");
     }
 
-    pthread_mutex_unlock(&lock);
+    if(tag)
+        pthread_mutex_unlock(&lock_ack);
+    else
+        pthread_mutex_unlock(&lock_non_ack);
+
+
     return nbevents;
 }
 

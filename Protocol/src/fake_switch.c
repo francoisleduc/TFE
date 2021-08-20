@@ -8,7 +8,6 @@
 #include <unistd.h>
 #include <netdb.h> 
 
-
 #include "common.h"
 #include "log.h"
 #include "client.h"
@@ -16,7 +15,9 @@
 extern List* eventsQACK;
 extern List* eventsQNOACK;
 
-extern pthread_mutex_t lock;
+extern pthread_mutex_t lock_ack;
+extern pthread_mutex_t lock_non_ack;
+
 extern bool terminated;
 extern int seqNB;
 int noack_p = 0;
@@ -39,7 +40,10 @@ static void* lambda_communication_thread(void* input)
     bool t = true;
     int nbevents = 0;
 
-    int msec = 0, retrans = 500, trigger1 = 2000, trigger2 = 2000; /* 500ms */ /* and */ /* 1000ms */
+    int msec = 0, retrans = 200, trigger1 = 2000, trigger2 = 2000; /* 500ms */ /* and */ /* 1000ms */
+    usleep(300000); // ensure sending thread operates two tenth of a second later than the polling thread to ensure all events were added to the queue and 
+    // optimize the sending of maximum events
+    
     clock_t before1 = clock(); // associated to trigger1
     clock_t before2 = clock(); // associated to trigger2
 
@@ -54,7 +58,7 @@ static void* lambda_communication_thread(void* input)
     }
 
     bzero(((struct args*)input)->buf, BUFSIZE);
-    nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
+    nbevents = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
     log_info("Setting flags \n");
 
     // Non blocking receive method flags 
@@ -85,12 +89,15 @@ static void* lambda_communication_thread(void* input)
             }
         }
 
+        //printf("msec: %d , trigger1 %d \n", msec, trigger1);
+
         if(msec > trigger1 && nbevents == 0)
         {
+            printf("Trying to send \n");
             // send new 
-            //log_info("Timer alert: Sending now because queue was empty last time \n");
-            nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
             before1 = clock();
+            //log_info("Timer alert: Sending now because queue was empty last time \n");
+            nbevents = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
             counter_ack += nbevents;
         }
 
@@ -100,7 +107,6 @@ static void* lambda_communication_thread(void* input)
         */
         clock_t difference2 = clock() - before2;
         msec = difference2 * 1000 / CLOCKS_PER_SEC;
-        //printf("msec: %d , trigger2 %d \n", msec, trigger2);
         if(msec > trigger2)
         {
             printf("Start burst \n");
@@ -108,13 +114,13 @@ static void* lambda_communication_thread(void* input)
             do 
             {
                 bzero(((struct args*)input)->bufSecondary, BUFSIZE);
-                int noa = send_new(pts, (struct args*) input, lock, selectedEvtsNoAck, serverlen, false);
+                int noa = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvtsNoAck, serverlen, false);
                 if(noa > 0)
                 {
-                    pthread_mutex_lock(&lock);
+                    pthread_mutex_lock(&lock_non_ack);
                     noack_p += noa;
                     free_buffer_waiting_events(selectedEvtsNoAck, eventsQNOACK);
-                    pthread_mutex_unlock(&lock);
+                    pthread_mutex_unlock(&lock_non_ack);
                 }
             }
             while(get_list_size(eventsQNOACK) > 0);
@@ -131,19 +137,16 @@ static void* lambda_communication_thread(void* input)
             if(((struct args*)input)->buf[0] == 'A' && ((struct args*)input)->buf[1] == 'C' && ((struct args*)input)->buf[2] == 'K')
             {
                 before1 = clock();
-                //before2 = clock();
-                pthread_mutex_lock(&lock);
+                pthread_mutex_lock(&lock_ack);
                 free_buffer_waiting_events(selectedEvts, eventsQACK); // remove from Q and selectedEvts array
-                pthread_mutex_unlock(&lock);
+                pthread_mutex_unlock(&lock_ack);
 
                 ((struct args*)input)->buf[n] = '\0';
                 printf("Echo from server: %s \n", ((struct args*)input)->buf);
                 log_info("Acknowledgment received: sending new packet \n");
 
                 bzero(((struct args*)input)->buf, BUFSIZE);
-                nbevents = send_new(pts,(struct args*) input, lock, selectedEvts, serverlen, true);
-                
-
+                nbevents = send_new(pts,(struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
                 counter_ack += nbevents;
             }
         }
@@ -242,10 +245,12 @@ int main(int argc, char **argv) {
     memcpy(in->version, version, VERSION_S);
     in->serveraddr = serveraddr;
     
-    pthread_t tid; 
+    pthread_t tid;
+
+
     pthread_create(&tid, NULL, lambda_communication_thread, (void *)in); // This thread manages message exchanges between the switch and the lambda server
 
-    if(pthread_mutex_init(&lock, NULL) != 0)
+    if(pthread_mutex_init(&lock_ack, NULL) != 0 || pthread_mutex_init(&lock_non_ack, NULL) != 0)
     {
         log_fatal("Mutex init failed", __FILE__, __func__, __LINE__);
         return 1;
@@ -253,10 +258,9 @@ int main(int argc, char **argv) {
 
 
     /* Do not include in XDP */
-    int half_sec_counter = 0;
+    int sec_counter = 0;
 
-    usleep(30 * 1000);
-    FILE* fptr = fopen("noack_1000_data.csv","w");
+    FILE* fptr = fopen("ack_20000_data_drop_001.csv","w");
     if(fptr == NULL)
     {
         printf("Error!");   
@@ -271,24 +275,30 @@ int main(int argc, char **argv) {
         are met to trigger lambda events and thus send them to the lambda server 
         NB: Normally this is in this same loop that we add events too but for now they are pre-loaded for testing purposes
         */
-        half_sec_counter++;
-        usleep(500000);
-        printf("Size of standard queue : %ld \n", get_list_size(eventsQNOACK));
-        printf("Number of standard event sent : %d \n", noack_p);
-        printf("Number of standard bytes sent : %d \n", noack_p*28);
-        printf("\n\n");
-        printf("Size of Acknowledgment queue : %ld \n", get_list_size(eventsQACK));
-        printf("Number of Acknowledgment event sent : %d \n", counter_ack);
-        printf("Number of Acknowledgment bytes sent : %d \n", counter_ack*28);
-        printf("Time elapsed: %f \n", half_sec_counter*0.5);
+        for(int s = 0; s < 10; s++)
+        {
+            sec_counter++;
+            usleep(200000);
+            //printf("Size of standard queue : %ld \n", get_list_size(eventsQNOACK));
+            //printf("Number of standard event sent : %d \n", noack_p);
+            //printf("Number of standard bytes sent : %d \n", noack_p*28);
 
-        fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQNOACK), noack_p, noack_p*28);
-        //fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQACK), counter_ack, counter_ack*28);
+            //printf("\n\n");
+            pthread_mutex_lock(&lock_ack);
+            printf("Size of Acknowledgment queue : %ld \n", get_list_size(eventsQACK));
+            printf("Number of Acknowledgment event sent : %d \n", counter_ack);
+            printf("Number of Acknowledgment bytes sent : %d \n", counter_ack*28);
+            printf("Time elapsed: %f \n", sec_counter*0.2);
 
-        printf("----------------------------------\n\n\n\n");
-        pthread_mutex_lock(&lock);
+            //fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQNOACK), noack_p, noack_p*28); 
+            fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQACK), counter_ack, counter_ack*28);
+            pthread_mutex_unlock(&lock_ack);
+            printf("----------------------------------\n\n\n\n");
+        }
+        
 
-        for(int j = 0; j < 500; j++)
+        pthread_mutex_lock(&lock_ack);
+        for(int j = 0; j < 20000; j++)
         {
             //printf("### Main process adding lambda events in the queue \n");
             unsigned char *s = malloc(28*sizeof(unsigned char));
@@ -297,13 +307,14 @@ int main(int argc, char **argv) {
 
             request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
             //print_byte_array(s, 28);
-            struct event* newEvent = make_event(2, s, 0, 28); // change 1 to 0 or 0 to 1 to put ACK flag 
-            insert_in_list(eventsQNOACK, newEvent); // change queue type to fit correct event 
+            struct event* newEvent = make_event(2, s, 1, 28); // change 1 to 0 or 0 to 1 to put ACK flag 
+            insert_in_list(eventsQACK, newEvent); // change queue type to fit correct event 
         }
+        pthread_mutex_unlock(&lock_ack);
+
         
-        pthread_mutex_unlock(&lock);
         
-        if(half_sec_counter >= 60)
+        if(sec_counter >= 150)
         {
             fclose(fptr);
             exit(1);
