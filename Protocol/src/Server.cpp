@@ -260,12 +260,12 @@ struct respacket* Server::process_packet(unsigned char* buf)
         {
             case 1:
                 dlen = process_description_event_id1(d, buf+index);
-                hasToBeAck = 0; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
+                hasToBeAck = 1; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
                 //cout << "Received id 1" << endl;
                 break;
             case 2:
                 dlen = process_description_event_id2(d, buf+index);
-                hasToBeAck = 0;
+                hasToBeAck = 1;
 			    //cout << "Received id 2 " << endl;
                 break;
             case 3:

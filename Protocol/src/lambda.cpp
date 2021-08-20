@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <climits>
 #include <string>
+#include <time.h>
 
 extern int total_events;
 
@@ -85,7 +86,7 @@ int main(int argc, char** argv) {
     auto *s = new Server(portno, ip, configmap);
 
     int counter_drop = 0;
-
+    srand((unsigned int)time(NULL));
     while (true) {
         bzero(buf, BUFSIZE);
         pair<socklen_t, struct sockaddr_in> p = s->receive(buf, clientlen, clientaddr); // Store original sender info
@@ -95,8 +96,9 @@ int main(int argc, char** argv) {
             cout << "Could not parse datagram source address " << __func__ << "+ " << __LINE__ << endl;
         cout << "server received datagram from " << hostaddrp << endl;
 
-        double rd = drand48();
-        if ((droprate < rd) && responding) 
+        double rd = (float) rand()/RAND_MAX;
+        cout << "RD: " << rd << endl; 
+        if ((droprate < rd) && responding)
         {
             //print_byte_array(buf, BUFSIZE);
             struct respacket *rp = s->process_packet(buf);
