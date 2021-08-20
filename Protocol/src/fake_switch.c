@@ -89,7 +89,7 @@ static void* lambda_communication_thread(void* input)
             }
         }
 
-        //printf("msec: %d , trigger1 %d \n", msec, trigger1);
+        //printf("trigger1 %d \n", msec, trigger1);
 
         if(msec > trigger1 && nbevents == 0)
         {
@@ -211,29 +211,6 @@ int main(int argc, char **argv) {
 
     eventsQACK = new_list();
     eventsQNOACK = new_list();
-    
-
-    /**** Do not to include in XDP ****/
-    /*int nb = 10;
-    for(int i = 0; i < nb; i++)
-    {
-        unsigned char s[28];
-        memcpy(s, "My event needs an ack - ACK\0", 28);
-        struct event* newEvent = make_event(1, s, 1, 28);
-        insert_in_list(eventsQACK, newEvent);
-    }*/
-    
-    /*
-    for(int i = 0; i < nb/2; i++)
-    {
-        unsigned char s[42];
-        memcpy(s, "My event does not need to be acknowledged\0", 42);
-        struct event* newEvent = make_event(2, s, 0, 42);
-        insert_in_list(eventsQNOACK, newEvent);
-    }
-    */
-
-    /*** End of do not include in XDP ***/
 
 
     struct args *in = (struct args *)malloc(sizeof(struct args));
@@ -260,7 +237,7 @@ int main(int argc, char **argv) {
     /* Do not include in XDP */
     int sec_counter = 0;
 
-    FILE* fptr = fopen("ack_20000_data_drop_001.csv","w");
+    FILE* fptr = fopen("noack_200000_data.csv","w");
     if(fptr == NULL)
     {
         printf("Error!");   
@@ -277,28 +254,31 @@ int main(int argc, char **argv) {
         */
         for(int s = 0; s < 10; s++)
         {
-            sec_counter++;
             usleep(200000);
-            //printf("Size of standard queue : %ld \n", get_list_size(eventsQNOACK));
-            //printf("Number of standard event sent : %d \n", noack_p);
+            printf("----------------------------------\n\n\n\n");
+            sec_counter++;
+
+            //pthread_mutex_lock(&lock_non_ack);
+
+            printf("Size of standard queue : %ld \n", get_list_size(eventsQNOACK));
+            printf("Number of standard event sent : %d \n", noack_p);
             //printf("Number of standard bytes sent : %d \n", noack_p*28);
 
             //printf("\n\n");
-            pthread_mutex_lock(&lock_ack);
-            printf("Size of Acknowledgment queue : %ld \n", get_list_size(eventsQACK));
-            printf("Number of Acknowledgment event sent : %d \n", counter_ack);
-            printf("Number of Acknowledgment bytes sent : %d \n", counter_ack*28);
+            //printf("Size of Acknowledgment queue : %ld \n", get_list_size(eventsQACK));
+            //printf("Number of Acknowledgment event sent : %d \n", counter_ack);
+            //printf("Number of Acknowledgment bytes sent : %d \n", counter_ack*28);
             printf("Time elapsed: %f \n", sec_counter*0.2);
 
-            //fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQNOACK), noack_p, noack_p*28); 
-            fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQACK), counter_ack, counter_ack*28);
-            pthread_mutex_unlock(&lock_ack);
-            printf("----------------------------------\n\n\n\n");
+            fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQNOACK), noack_p, noack_p*28); 
+            //fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQACK), counter_ack, counter_ack*28);
+            //pthread_mutex_unlock(&lock_non_ack);
+
         }
         
 
-        pthread_mutex_lock(&lock_ack);
-        for(int j = 0; j < 20000; j++)
+        pthread_mutex_lock(&lock_non_ack);
+        for(int j = 0; j < 200000; j++)
         {
             //printf("### Main process adding lambda events in the queue \n");
             unsigned char *s = malloc(28*sizeof(unsigned char));
@@ -307,10 +287,10 @@ int main(int argc, char **argv) {
 
             request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
             //print_byte_array(s, 28);
-            struct event* newEvent = make_event(2, s, 1, 28); // change 1 to 0 or 0 to 1 to put ACK flag 
-            insert_in_list(eventsQACK, newEvent); // change queue type to fit correct event 
+            struct event* newEvent = make_event(2, s, 0, 28); // change 1 to 0 or 0 to 1 to put ACK flag 
+            insert_in_list(eventsQNOACK, newEvent); // change queue type to fit correct event 
         }
-        pthread_mutex_unlock(&lock_ack);
+        pthread_mutex_unlock(&lock_non_ack);
 
         
         
