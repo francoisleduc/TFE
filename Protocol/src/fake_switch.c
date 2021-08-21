@@ -25,12 +25,12 @@ int counter_ack = 0;
 
 static void request_forge_flow_packet(int src, int dest, int ports, int64_t size, int protocol, unsigned char* s, int count) 
 {
-	int_to_bytes(s, src);
-	int_to_bytes(s+4, dest);
-	int_to_bytes(s+8, ports);
-	int_to_bytes(s+12, protocol);
-	int_to_bytes(s+16, count);
-	int64_to_bytes(s+20, size);
+    int_to_bytes(s, src);
+    int_to_bytes(s+4, dest);
+    int_to_bytes(s+8, ports);
+    int_to_bytes(s+12, protocol);
+    int_to_bytes(s+16, count);
+    int64_to_bytes(s+20, size);
 }
 
 static void* lambda_communication_thread(void* input)
@@ -39,7 +39,7 @@ static void* lambda_communication_thread(void* input)
     int n = 0;
     int nbevents = 0;
 
-    int msec = 0, retrans = 200, trigger1 = 2000, trigger2 = 2000; 
+    int msec = 0, retrans = 30, trigger1 = 2000, trigger2 = 2000; 
     usleep(300000); // ensure sending thread operates two tenth of a second later than the polling thread to ensure all events were added to the queue and 
     // optimize the sending of maximum events
     
@@ -68,6 +68,7 @@ static void* lambda_communication_thread(void* input)
 
     while(true)
     {
+        //if (msec % 1 == 0)
         clock_t difference = clock() - retran_c;
         msec = difference * 1000 / CLOCKS_PER_SEC;
         if(msec > retrans && nbevents > 0)
@@ -94,15 +95,16 @@ static void* lambda_communication_thread(void* input)
         {
             printf("Trying to send ACK transaction \n");
             // send new 
-            before1 = clock();
             //log_info("Timer alert: Sending now because queue was empty last time \n");
             nbevents = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
+            before1 = clock();
         }
 
 
         /* Here we check if the events that don't need an ACK can be sent depending on their own timer 
          * (which is most likely to be different from the previous one)
         */
+        //printf("a\n");
         difference = clock() - before2;
         msec = difference * 1000 / CLOCKS_PER_SEC;
         if(msec > trigger2)
@@ -113,6 +115,7 @@ static void* lambda_communication_thread(void* input)
             {
                 bzero(((struct args*)input)->bufSecondary, BUFSIZE);
                 int noa = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvtsNoAck, serverlen, false);
+
                 if(noa > 0)
                 {
                     pthread_mutex_lock(&lock_non_ack);
@@ -125,7 +128,7 @@ static void* lambda_communication_thread(void* input)
             //log_info("Timer alert: Sending from non essential queue \n");
             printf("End burst \n");
         }
-        
+
         /* print the server's reply */
         n = recvfrom(((struct args*)input)->sockfd, ((struct args*)input)->buf, BUFSIZE, O_NONBLOCK, 
             (struct sockaddr *)&(((struct args*)input)->serveraddr), &serverlen);
@@ -134,15 +137,12 @@ static void* lambda_communication_thread(void* input)
         {
             if(((struct args*)input)->buf[0] == 'A' && ((struct args*)input)->buf[1] == 'C' && ((struct args*)input)->buf[2] == 'K')
             {
-                //before1 = clock();
                 pthread_mutex_lock(&lock_ack);
                 free_buffer_waiting_events(selectedEvts, eventsQACK); // remove from Q and selectedEvts array
                 counter_ack += nbevents;
                 pthread_mutex_unlock(&lock_ack);
 
                 ((struct args*)input)->buf[n] = '\0';
-                printf("Echo from server: %s \n", ((struct args*)input)->buf);
-                log_info("Acknowledgment received: sending new packet \n");
 
                 bzero(((struct args*)input)->buf, BUFSIZE);
                 nbevents = send_new(pts,(struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, 
-	  (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+      (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
 
     /* get a message from the user */
@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
 
     int sec_counter = 0;
 
-    FILE* fptr = fopen("ack_20000_data_drop_005.csv","w");
+    FILE* fptr = fopen("noack_200_data.csv","w");
     if(fptr == NULL)
     {
         printf("Error!");   
@@ -251,24 +251,23 @@ int main(int argc, char **argv) {
             printf("----------------------------------\n\n\n\n");
             sec_counter++;
 
-            //printf("Size of standard queue : %ld \n", get_list_size(eventsQNOACK));
-            //printf("Number of standard event sent : %d \n", noack_p);
+            printf("Size of standard queue : %ld \n", get_list_size(eventsQNOACK));
+            printf("Number of standard event sent : %d \n", noack_p);
             //printf("Number of standard bytes sent : %d \n", noack_p*28);
 
             //printf("\n\n");
-            printf("Size of Acknowledgment queue : %ld \n", get_list_size(eventsQACK));
-            printf("Number of Acknowledgment event sent : %d \n", counter_ack);
+            //printf("Size of Acknowledgment queue : %ld \n", get_list_size(eventsQACK));
+            //printf("Number of Acknowledgment event sent : %d \n", counter_ack);
             //printf("Number of Acknowledgment bytes sent : %d \n", counter_ack*28);
             printf("Time elapsed: %f \n", sec_counter*0.2);
 
-            //fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQNOACK), noack_p, noack_p*28); 
-            fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQACK), counter_ack, counter_ack*28);
+            fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQNOACK), noack_p, noack_p*28); 
+            //fprintf(fptr, "%ld,%d,%d\n", get_list_size(eventsQACK), counter_ack, counter_ack*28);
 
         }
         
 
-        pthread_mutex_lock(&lock_ack);
-        for(int j = 0; j < 20000; j++)
+        for(int j = 0; j < 200; j++)
         {
             unsigned char *s = malloc(28*sizeof(unsigned char));
               if(!s)
@@ -276,12 +275,13 @@ int main(int argc, char **argv) {
 
             request_forge_flow_packet(167772161, 167772162, 222222222, 1289000, 6, s, 128);
             //print_byte_array(s, 28);
-            struct event* newEvent = make_event(2, s, 1, 28); // change 1 to 0 or 0 to 1 to put ACK flag 
-            insert_in_list(eventsQACK, newEvent); // change queue type to fit correct event 
+            struct event* newEvent = make_event(2, s, 0, 28); // change 1 to 0 or 0 to 1 to put ACK flag 
+            pthread_mutex_lock(&lock_non_ack);
+            insert_in_list(eventsQNOACK, newEvent); // change queue type to fit correct event 
+            pthread_mutex_unlock(&lock_non_ack);
         }
-        pthread_mutex_unlock(&lock_ack);
         
-        if(sec_counter >= 150)
+        if(sec_counter >= 100)
         {
             fclose(fptr);
             exit(1);
