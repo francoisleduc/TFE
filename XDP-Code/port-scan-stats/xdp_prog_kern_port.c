@@ -143,7 +143,6 @@ int process_packet(struct xdp_md *ctx)
 	__u32 hash;
 	__u32 key;
 	__u32 off;
-	bpf_debug("XDP_PORTTT\n");
 	/* determine hashing mode using map lookup */
 	key = 0;
 	jhash = true;
@@ -169,15 +168,20 @@ int process_packet(struct xdp_md *ctx)
 	}
 
 	/* if IPinIP packet allow for second IP header */
-	if (f.protocol == IPPROTO_IPIP) {
-		if (use_encap) {
+	if (f.protocol == IPPROTO_IPIP) 
+	{
+		if (use_encap) 
+		{
 			if (!parse_ip4(data, off, data_end, &f))
 				return XDP_PASS;
 			is_ip6 = false;
 		}
 		off += sizeof(struct iphdr);
-	} else if (f.protocol == IPPROTO_IPV6) {
-		if (use_encap) {
+	} 
+	else if (f.protocol == IPPROTO_IPV6) 
+	{
+		if (use_encap) 
+		{
 			if (!parse_ip6(data, off, data_end, &f))
 				return XDP_PASS;
 			is_ip6 = true;
@@ -190,45 +194,51 @@ int process_packet(struct xdp_md *ctx)
 
 
 	/* obtain port numbers for UDP and TCP traffic */
-	if (f.protocol == IPPROTO_TCP) {
+	if (f.protocol == IPPROTO_TCP) 
+	{
 		if (!parse_tcp(data, off, data_end, &f))
 			return XDP_PASS;
-	} else if (f.protocol == IPPROTO_UDP) {
+	} 
+	else if (f.protocol == IPPROTO_UDP) 
+	{
 		if (!parse_udp(data, off, data_end, &f))
 			return XDP_PASS;
-	} else {
+	} 
+	else 
+	{
 		f.dstport = 0;
 	}
 	
-	if (jhash) {
+	if (jhash) 
+	{
 		/* set map lookup key using 4 tuple hash */
 		hash = hash_tuples(&f, is_ip6);
 		key = hash % MAX_MAP_SIZE;
         bpf_debug("Hash: %d - key: %d \n", hash, key);
 	}
 	
-   v = bpf_map_lookup_elem(&port_map, &key);
-   if(!v)
-   {
-      return XDP_PASS;
-   }
-   /* MODIFY THIS PART */
-   if(v->csyn == 0 && v->crst == 0 && v->empty_udp == 0)
+	v = bpf_map_lookup_elem(&port_map, &key);
+	if(!v)
 	{
-        bpf_debug("First time entry used \n");
- 		v->src = f.src;
-   	    v->dst = f.dst;
-   	    v->dstport = f.dstport;
-   	    v->protocol = f.protocol;
-   	    //v->empty_udp = f.empty_udp;
+	  return XDP_PASS;
+	}
+	/* MODIFY THIS PART */
+	if(v->csyn == 0 && v->crst == 0 && v->empty_udp == 0)
+	{
+	    bpf_debug("First time entry used \n");
+			v->src = f.src;
+		    v->dst = f.dst;
+		    v->dstport = f.dstport;
+		    v->protocol = f.protocol;
+		    //v->empty_udp = f.empty_udp;
 		v->timestamp_start = bpf_ktime_get_ns();
 		v->timestamp_last_m = bpf_ktime_get_ns();
-   	    __sync_fetch_and_add(&v->csyn, f.csyn);
-   	    __sync_fetch_and_add(&v->crst, f.crst);
-   	    __sync_fetch_and_add(&v->empty_udp, f.empty_udp);
+		    __sync_fetch_and_add(&v->csyn, f.csyn);
+		    __sync_fetch_and_add(&v->crst, f.crst);
+		    __sync_fetch_and_add(&v->empty_udp, f.empty_udp);
 		//bpf_debug("Time of flow last modification %ld \n", v->timestamp_last_m);
-   }
-   else
+	}
+	else
 	{
 		if(v->src == f.src && v->dstport == f.dstport && v->dst == f.dst && v->protocol == f.protocol)
 		{
@@ -247,9 +257,9 @@ int process_packet(struct xdp_md *ctx)
 				// flow too old since last update - reuse entry
 				bpf_debug("Reuse old entry \n");
 				v->src = f.src;
-   			    v->dst = f.dst;
-   			    v->dstport = f.dstport;
-   			    v->protocol = f.protocol;
+				    v->dst = f.dst;
+				    v->dstport = f.dstport;
+				    v->protocol = f.protocol;
 				v->timestamp_start = bpf_ktime_get_ns();
 				v->timestamp_last_m = bpf_ktime_get_ns();
 				__sync_fetch_and_add(&v->csyn, - v->csyn);

@@ -94,20 +94,6 @@ int find_map_fd(struct bpf_object *bpf_obj, const char *mapname)
 	return map_fd;
 }
 
-static void stats_print_header()
-{
-	/* Print stats "header" */
-	printf("%-12s\n", "XDP-2\n");
-}
-
-
-static void stats_print()
-{
-
-	stats_print_header(); /* Print stats "header" */
-
-}
-
 
 static void stats_poll(int map_fd, int interval)
 {
@@ -117,7 +103,7 @@ static void stats_poll(int map_fd, int interval)
 
 	while (1) 
 	{
-		stats_print();
+		printf("%-12s\n", "NEW BPF ENTRIES\n");
         struct timespec t;
         clock_gettime(CLOCK_MONOTONIC, &t);
 		for(int i = 0; i < MAX_MAP_SIZE; i++)
@@ -251,7 +237,6 @@ static void* lambda_communication_thread(void* input)
             // Resend because timer expired and still did not receive an ACK for the last packet 
             log_info("Timer alert: Retransmission of last packet \n");
             serverlen = sizeof(((struct args*)input)->serveraddr);
-            //print_byte_array((unsigned char*) ((struct args*)input)->buf, BUFSIZE);
             n = sendto(((struct args*)input)->sockfd, (const char*) ((struct args*)input)->buf, BUFSIZE, 0, 
                 (struct sockaddr *)&(((struct args*)input)->serveraddr), serverlen);
             if (n < 0)
@@ -465,9 +450,7 @@ int main(int argc, char **argv)
 
     pthread_create(&tid, NULL, lambda_communication_thread, (void *)in); // This thread is dedicated communicate with the lambda server
 
-    
 	stats_poll(stats_map_fd, interval);
-
     free_list_event(eventsQACK);
     free_list_event(eventsQNOACK);
 	return EXIT_OK;
