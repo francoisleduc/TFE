@@ -26,7 +26,7 @@ module.exports = {
            if (err) 
               throw err;
            if(result.length > 0){
-              var empty = d["udp"] + result[0]["udp"];
+              var empty = result[0]["udp"];
               var newval = { $set: {"udp": empty}};
               db.collection('port-stats').updateOne(fquery, newval, function(err, res) {
                 if(err)

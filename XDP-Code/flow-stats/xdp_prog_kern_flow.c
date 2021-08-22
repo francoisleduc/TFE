@@ -202,7 +202,7 @@ int process_packet(struct xdp_md *ctx)
 
    if(v->count == 0)
 	{
-        bpf_debug("First time flow entry used \n");
+        bpf_debug("Init new flow \n");
  		v->src = f.src;
    	    v->dst = f.dst;
    	    v->ports = f.ports;
@@ -211,15 +211,14 @@ int process_packet(struct xdp_md *ctx)
 		v->timestamp_last_m = bpf_ktime_get_ns();
    	    __sync_fetch_and_add(&v->count, 1);
 		__sync_fetch_and_add(&v->bytes, (data_end - data));
-		bpf_debug("Time of flow last modification %ld \n", v->timestamp_last_m);
+		bpf_debug("Last flow modification time: %ld \n", v->timestamp_last_m);
    }
    else
 	{
-		bpf_debug("Flow entry already created \n");
 		if(v->src == f.src && v->ports == f.ports && v->dst == f.dst && v->protocol == f.protocol)
 		{
 			// we just update current flow, this was not a collision
-			bpf_debug("Updating current flow \n");
+			bpf_debug("Updating flow \n");
 			__sync_fetch_and_add(&v->count, 1);
 			__sync_fetch_and_add(&v->bytes, (data_end - data));
 			v->timestamp_last_m = bpf_ktime_get_ns();
@@ -254,7 +253,7 @@ int process_packet(struct xdp_md *ctx)
 	bpf_debug("Size for key:%d , size: %d bytes \n", key, v->bytes);
     bpf_debug("Ports: %u %u \n", f.port16[0], f.port16[1]);
 	//bpf_debug("Ports ports: %d \n", f.ports);
-   //bpf_debug("Protocol : %d \n", f.protocol);
+    //bpf_debug("Protocol : %d \n", f.protocol);
 	//bpf_debug("Time of last flow update: %llu \n", v->timestamp_last_m);
 
 	return XDP_PASS;

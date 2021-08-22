@@ -51,10 +51,13 @@ static const struct option_wrapper long_options[] = {
 extern List* eventsQACK;
 extern List* eventsQNOACK;
 
-extern pthread_mutex_t lock;
+extern pthread_mutex_t lock_ack;
+extern pthread_mutex_t lock_non_ack;
+
 extern bool terminated;
 extern int seqNB;
-
+int noack_p = 0;
+int counter_ack = 0;
 /* 
  * error - wrapper for perror
  */
@@ -138,7 +141,7 @@ static void stats_poll(int map_fd, int interval)
                     // Send new flow entries or refreshed ones only to avoid network overload caused by too many events
                     if((t.tv_sec * 1000000000) + t.tv_nsec - NANO_GAP <  v->timestamp_last_m)
                     {
-                        pthread_mutex_lock(&lock);
+                        pthread_mutex_lock(&lock_ack);
                         printf("Flow ip src: %d , ip dst: %d , tot_bytes: %llu , tot_packets %d , ports %d \n", v->src, v->dst, v->bytes, v->count, v->ports);
                         unsigned char *s = malloc(28*sizeof(unsigned char));
                         if(!s)
@@ -149,7 +152,7 @@ static void stats_poll(int map_fd, int interval)
                         struct event* newEvent = make_event(2, s, 1, 28);
                         insert_in_list(eventsQACK, newEvent);
 
-                        pthread_mutex_unlock(&lock);
+                        pthread_mutex_unlock(&lock_ack);
                         // Add new event 
                     }
 				}
@@ -210,12 +213,15 @@ static void* lambda_communication_thread(void* input)
 {
     socklen_t serverlen = 0;
     int n = 0;
-    bool t = true;
     int nbevents = 0;
 
-    int msec = 0, trigger1 = 1000, trigger2 = 2000; /* 500ms */ /* and */ /* 1000ms */
+    int msec = 0, retrans = 50, trigger1 = 2000, trigger2 = 2000; 
+    usleep(300000); // ensure sending thread operates two tenth of a second later than the polling thread to ensure all events were added to the queue and 
+    // optimize the sending of maximum events
+    
     clock_t before1 = clock(); // associated to trigger1
     clock_t before2 = clock(); // associated to trigger2
+    clock_t retran_c = clock(); // retransmission timer 
 
     struct spacket* pts = NULL;
     struct event** selectedEvts = malloc(MAX_EVENT_P*sizeof(struct event));
@@ -227,6 +233,8 @@ static void* lambda_communication_thread(void* input)
         selectedEvtsNoAck[x] = NULL;
     }
 
+    bzero(((struct args*)input)->buf, BUFSIZE);
+    nbevents = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
     log_info("Setting flags \n");
 
     // Non blocking receive method flags 
@@ -234,15 +242,16 @@ static void* lambda_communication_thread(void* input)
     flags |= O_NONBLOCK;
     fcntl(((struct args*)input)->sockfd, F_SETFL, flags);
 
-    while(t)
+    while(true)
     {
-        clock_t difference1 = clock() - before1;
-        msec = difference1 * 1000 / CLOCKS_PER_SEC;
-        if(msec > trigger1 && nbevents > 0)
+        clock_t difference = clock() - retran_c;
+        msec = difference * 1000 / CLOCKS_PER_SEC;
+        if(msec > retrans && nbevents > 0)
         {
             // Resend because timer expired and still did not receive an ACK for the last packet 
             log_info("Timer alert: Retransmission of last packet \n");
             serverlen = sizeof(((struct args*)input)->serveraddr);
+            //print_byte_array((unsigned char*) ((struct args*)input)->buf, BUFSIZE);
             n = sendto(((struct args*)input)->sockfd, (const char*) ((struct args*)input)->buf, BUFSIZE, 0, 
                 (struct sockaddr *)&(((struct args*)input)->serveraddr), serverlen);
             if (n < 0)
@@ -251,15 +260,15 @@ static void* lambda_communication_thread(void* input)
             }
             else
             {
-                before1 = clock(); // reset timer 
+                retran_c = clock(); // retransmission timer 
             }
         }
 
+        difference = clock() - before1;
+        msec = difference * 1000 / CLOCKS_PER_SEC;
         if(msec > trigger1 && nbevents == 0)
         {
-            // send new 
-            //log_info("Timer alert: Sending now because queue was empty last time \n");
-            nbevents = send_new(pts, (struct args*) input, lock, selectedEvts, serverlen, true);
+            nbevents = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
             before1 = clock();
         }
 
@@ -267,43 +276,44 @@ static void* lambda_communication_thread(void* input)
         /* Here we check if the events that don't need an ACK can be sent depending on their own timer 
          * (which is most likely to be different from the previous one)
         */
-        clock_t difference2 = clock() - before2;
-        msec = difference2 * 1000 / CLOCKS_PER_SEC;
+        difference = clock() - before2;
+        msec = difference * 1000 / CLOCKS_PER_SEC;
         if(msec > trigger2)
         {
-            //log_info("Timer alert: Sending from non essential queue \n");
-            bzero(((struct args*)input)->bufSecondary, BUFSIZE);
-            int noa = send_new(pts, (struct args*) input, lock, selectedEvtsNoAck, serverlen, false);
-            if(noa > 0)
-            {
-                pthread_mutex_lock(&lock);
-                free_buffer_waiting_events(selectedEvtsNoAck, eventsQNOACK);
-                pthread_mutex_unlock(&lock);
-            }
-            
             before2 = clock();
+            do 
+            {
+                bzero(((struct args*)input)->bufSecondary, BUFSIZE);
+                int noa = send_new(pts, (struct args*) input, lock_ack, lock_non_ack, selectedEvtsNoAck, serverlen, false);
+
+                if(noa > 0)
+                {
+                    pthread_mutex_lock(&lock_non_ack);
+                    noack_p += noa;
+                    free_buffer_waiting_events(selectedEvtsNoAck, eventsQNOACK);
+                    pthread_mutex_unlock(&lock_non_ack);
+                }
+            }
+            while(get_list_size(eventsQNOACK) > 0);
         }
-        
+
         /* print the server's reply */
         n = recvfrom(((struct args*)input)->sockfd, ((struct args*)input)->buf, BUFSIZE, O_NONBLOCK, 
             (struct sockaddr *)&(((struct args*)input)->serveraddr), &serverlen);
 
-        if (n > 0 && n <= 1024)
+        if (n > 0 && n <= BUFSIZE)
         {
             if(((struct args*)input)->buf[0] == 'A' && ((struct args*)input)->buf[1] == 'C' && ((struct args*)input)->buf[2] == 'K')
             {
-                pthread_mutex_lock(&lock);
+                pthread_mutex_lock(&lock_ack);
                 free_buffer_waiting_events(selectedEvts, eventsQACK); // remove from Q and selectedEvts array
-                pthread_mutex_unlock(&lock);
+                counter_ack += nbevents;
+                pthread_mutex_unlock(&lock_ack);
 
                 ((struct args*)input)->buf[n] = '\0';
-                printf("Echo from server: %s \n", ((struct args*)input)->buf);
-                log_info("Acknowledgment received: sending new packet \n");
 
                 bzero(((struct args*)input)->buf, BUFSIZE);
-                nbevents = send_new(pts,(struct args*) input, lock, selectedEvts, serverlen, true);
-                before1 = clock();
-                before2 = clock();
+                nbevents = send_new(pts,(struct args*) input, lock_ack, lock_non_ack, selectedEvts, serverlen, true);
             }
         }
     }
@@ -401,7 +411,6 @@ int main(int argc, char **argv)
     eventsQACK = new_list();
     eventsQNOACK = new_list();
 
-    unsigned char myip[SRCIP_S] = {0x7F, 0x0, 0x0, 0x1}; // this should be converted from the ip string and checked && cfg.ipstr
     unsigned char version[VERSION_S] = {0x1}; // same v1.0
 
     /* BPF */
@@ -442,14 +451,13 @@ int main(int argc, char **argv)
     in->sockfd = sockfd;
     memcpy(in->buf, buf, BUFSIZE);
     memcpy(in->bufSecondary, bufSecondary, BUFSIZE);
-    memcpy(in->myip, myip, SRCIP_S);
     in->identifierNumber = cfg.deviceid;
     memcpy(in->version, version, VERSION_S);
     in->serveraddr = serveraddr;
 
     pthread_t tid; 
 
-    if(pthread_mutex_init(&lock, NULL) != 0)
+    if(pthread_mutex_init(&lock_ack, NULL) != 0 || pthread_mutex_init(&lock_non_ack, NULL) != 0)
     {
         log_fatal("Mutex init failed", __FILE__, __func__, __LINE__);
         return 1;

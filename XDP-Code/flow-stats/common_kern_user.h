@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
 // Copyright (c) 2018 Netronome Systems, Inc.
 
-#define MAX_MAP_SIZE 262144
+#define MAX_MAP_SIZE 200000
 #define NANO_GAP 2000000000
 
 // 2^18 = 262144

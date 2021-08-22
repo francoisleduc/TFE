@@ -14,7 +14,8 @@
 List* eventsQACK = NULL;
 List* eventsQNOACK = NULL;
 
-pthread_mutex_t lock;
+pthread_mutex_t lock_ack;
+pthread_mutex_t lock_non_ack;
 
 bool terminated = false;
 
@@ -133,7 +134,7 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
 
     
 
-    printf("Total sum : %d - Number of events: %d \n", sum, *nbevents);
+    //printf("Total sum : %d - Number of events: %d \n", sum, *nbevents);
     set_head_list(q, saveh);
 
     return selected;
@@ -143,7 +144,7 @@ struct event** organize_packet(List* queueACK, List* queueNOACK, bool ackq, int*
 
 
 
-struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* srcip, unsigned char* version, int nbevents, int seq)
+struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* version, int nbevents, int seq)
 {
     struct spacket* p = malloc(sizeof(struct spacket));
     if(!p)
@@ -153,7 +154,7 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
     p->eventdescri = new_list();
 
     p->version[0] = version[0];
-    memcpy(p->srcip, srcip, SRCIP_S);
+    //memcpy(p->srcip, srcip, SRCIP_S);
     
     unsigned char srcid[SRCID_S];
     int_to_bytes(srcid, id);
@@ -165,7 +166,10 @@ struct spacket* create_packet_struct(struct event** ev, int id, unsigned char* s
     memcpy(p->seq, seqn, SEQ_S);
 
 
-    p->nbevents[0] = (unsigned char) nbevents;
+    unsigned char nbe[NBEVENTS_S];
+    int_to_bytes(nbe, nbevents);
+    memcpy(p->nbevents, nbe, NBEVENTS_S);
+
     for(int i = 0; i < nbevents; i++)
     {   
         struct event* cur = ev[i];
@@ -212,16 +216,15 @@ void create_packet_buf(char* buf, struct spacket* p) {
     if(!p)
         return;
     memcpy(buf, p->version, VERSION_S);
-    memcpy(buf+VERSION_S, p->srcip, SRCIP_S); // 1
-    memcpy(buf+VERSION_S+SRCIP_S,  p->sidentifier, SRCID_S);
-    memcpy(buf+VERSION_S+SRCIP_S+SRCID_S,  p->seq, SEQ_S);
-    memcpy(buf+VERSION_S+SRCIP_S+SRCID_S+SEQ_S,  p->nbevents, NBEVENTS_S); 
+    memcpy(buf+VERSION_S,  p->sidentifier, SRCID_S);
+    memcpy(buf+VERSION_S+SRCID_S,  p->seq, SEQ_S);
+    memcpy(buf+VERSION_S+SRCID_S+SEQ_S,  p->nbevents, NBEVENTS_S); 
 
     
     Element* headdescri = get_list_head(p->eventdescri);
 
 
-    int index = VERSION_S+SRCIP_S+SRCID_S+SEQ_S+NBEVENTS_S;
+    int index = VERSION_S+SRCID_S+SEQ_S+NBEVENTS_S;
 
     Element *current = get_list_head(p->eventdescri);
     for(unsigned int i = 0; i < get_list_size(p->eventdescri); i++)
@@ -244,26 +247,33 @@ void create_packet_buf(char* buf, struct spacket* p) {
 }
 
 
-int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock, 
+int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock_ack, pthread_mutex_t lock_non_ack,
     struct event** selected, socklen_t serverlen, bool tag)
 {
 
     char* b;
     if(tag)
+    {
         b = input->buf;
+        pthread_mutex_lock(&lock_ack);
+    }
     else
+    {
         b = input->bufSecondary;
+        pthread_mutex_lock(&lock_non_ack);
+    }
 
-    pthread_mutex_lock(&lock);
     int n = 0;
     int nbevents = 0;
     
+    //printf("Size of queue : %ld \n", get_list_size(eventsQNOACK));
+
     // Send the next packet 
     selected = organize_packet(eventsQACK, eventsQNOACK, tag, &nbevents, selected); // selected events, true means we focus on ACK Queue only
     // make buf from packet
     if(selected) // If there is no event to send on the line then just ignore making a packet 
     {
-        pts = create_packet_struct(selected, input->identifierNumber, input->myip , input->version, nbevents, seqNB);
+        pts = create_packet_struct(selected, input->identifierNumber, input->version, nbevents, seqNB);
         // Send this packet 
         create_packet_buf(b, pts);
         free_packet_struct(pts); // free last packet structure 
@@ -283,7 +293,12 @@ int send_new(struct spacket* pts, struct args* input, pthread_mutex_t lock,
         //log_info("Send new packets from Q but no events is available \n");
     }
 
-    pthread_mutex_unlock(&lock);
+    if(tag)
+        pthread_mutex_unlock(&lock_ack);
+    else
+        pthread_mutex_unlock(&lock_non_ack);
+
+
     return nbevents;
 }
 
@@ -384,7 +399,7 @@ void print_packet(struct spacket* p)
     printf("%d \n", bytes_to_single_int(p->sidentifier));
 
     log_info("Switch ip address: ");
-    print_ip_int(p->srcip);
+    //print_ip_int(p->srcip);
 
     //log_info("Sequence number: ");
     //print_byte_array(p->seq, SEQ_S);

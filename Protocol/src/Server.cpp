@@ -223,7 +223,7 @@ int Server::process_description_event_id2(struct pdescription* d, unsigned char*
 
     int dstp = get_dst_port(ports);
     int srcp = get_src_port(ports);
-    //printf("Received: src: %d , dst: %d , ports %d , protocol %d , count %d , size %ld \n", src, dst, ports, protocol, count, size);
+    printf("Received: src: %d , dst: %d , ports %d , protocol %d , count %d , size %ld \n", src, dst, ports, protocol, count, size);
     //execute_lambda_function_id2(src, dst, srcp, dstp, protocol, count, size);
 
 	// print description to show event was correctly sent from switch to lambda server
@@ -260,13 +260,13 @@ struct respacket* Server::process_packet(unsigned char* buf)
         {
             case 1:
                 dlen = process_description_event_id1(d, buf+index);
-                hasToBeAck = 0; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
-                //cout << "Received id 1" << endl;
+                hasToBeAck = 1; // Since we only put events with same ACKflag together we can make the assumption of checking last one only
+                cout << "Received id 1" << endl;
                 break;
             case 2:
                 dlen = process_description_event_id2(d, buf+index);
-                hasToBeAck = 0;
-			    //cout << "Received id 2 " << endl;
+                hasToBeAck = 1;
+			    cout << "Received id 2 " << endl;
                 break;
             case 3:
                 // id 3

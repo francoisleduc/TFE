@@ -26,7 +26,7 @@ module.exports = {
            if (err) 
               throw err;
            if(result.length > 0){
-              var newflowsize = d["count"] + result[0]["count"];
+              var newflowsize = result[0]["count"];
               var newval = { $set: {"count": newflowsize}};
               db.collection('flows').updateOne(fquery, newval, function(err, res) {
                 if(err)
