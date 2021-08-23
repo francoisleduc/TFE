@@ -1,5 +1,5 @@
 ## General
-You will find detailed readme.md inside each folder
+You will find detailed Readme for every dependency listed
 
 ## License
 
