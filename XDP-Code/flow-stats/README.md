@@ -4,7 +4,7 @@
 
 Contains the definition of the data structure stored in BPF maps (interface statistics definition)
 
-``` xdp_load_and_stats ``` 
+``` xdp_load_and_stats_flow ``` 
 This contains the source code of the user space program.
 1) Loads the kernel program on an interface
 2) Runs its user-space functionnalities (polling BPF maps, displaying them on screen, sending events to lambda server every now and then)
@@ -18,7 +18,7 @@ First you have to run ``` make ```
 Then it is advised to run ``` make copynet ``` to copy the executable and object files into the ``` /netsimulation ``` folder to test it on a small network topology.
 
 ```sh
-sudo ./xdp_load_and_stats -n deviceid -a sourceipaddr -l lambdaip -p lambdaportnb --dev interface-name
+sudo ./xdp_load_and_stats_flow -n deviceid -s sourceipaddr -l lambdaip -p lambdaportnb --dev interface-name
 ```
 > Note: adding `--force` after the interface name will have to be used to force the new program to be uploaded in case there is already one
 > Note: The device id must be an integer and should be unique among the other devices
