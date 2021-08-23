@@ -25,6 +25,14 @@ The second one focuses on the development of a (programmable device) client -> (
 
 Kubeless is a Kubernetes-native serverless framework that lets you deploy small bits of code (functions) without having to worry about the underlying infrastructure. This folder will contain the functions we want to be deployed in the cluster as well as all Kubernetes services deployed.
 
+## General Installation Steps
+
+For individual modification and development please follow specific readme instructions provided in each folder.
+
+
+...
+
+
 ## License
 
 LGPL-2.1 License 
