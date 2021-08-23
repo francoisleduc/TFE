@@ -1,9 +1,9 @@
 ## Usage
 
-First you have to run ``` make ``` in the ``` /http-counter``` folder.
-Then ``` make copynet ``` to copy the executable into the ``` /netsimulation ``` folder
+First make sure you have execute the ``` make ``` command in either /flow-stats or /port-scan-stats folder depending on what XDP program you want to test.
+Then ``` make copynet ``` to copy the executable into the ``` /netsimulation ``` folder to make them available to the simulation environment.
 
-After that all the other commands will be run from the ``` /netsimulation ```
+After that all the other commands will be run from the current ``` /netsimulation ``` folder.
 
 By running on a first terminal
 ```sh
@@ -23,34 +23,33 @@ in mininet
 In second terminal you want to launch the lambda_server
 
 ```sh
-$ ./lambda_server 127.0.0.1 8080 0.0 1000
+$ ./lambda_server 127.0.0.1 8000 0.0 1000
 ```
 
 And in a third terminal 
 
 ```sh
-sudo ./xdp_load_and_stats -n deviceid -a sourceipaddr -l lambdaip -p lambdaportnb --dev interface-name
+sudo ./xdp_load_and_stats -n deviceid -s sourceipaddr -l lambdaip -p lambdaportnb --dev interface-name
 ```
 > Note: The device id must be an integer and should be unique among the other devices
 > Note: The ip address should have this format: x.x.x.x
 > Note: lambdaportnb is the port number of the lambda server that the device will use to send the events
-> Note: adding `--force` after the interface name will have to be used to force the new program to be uploaded in case there is already one
+> Note: adding `--force` after the interface name will have to be used to force the new XDP program to be uploaded in case there is already one
 
 where **s1-eth1** is the interface name you want the kernel program to run on.
 
-From now on, the output of the userspace xdp_load_and_stats should 
+From now on, the output of the userspace xdp_load_and_stats_X should 
 update every 2seconds with a refresh of what's been captured on that interface.
 
 Sending pings or getting data from h1 will be captured
 
-![Example](https://imgur.com/Hik4EeC.jpg)
-
-
-You can also access bpf_printk() logs used for debugging or extra information
+You can also access bpf_printk() logs used for debugging or extra information by using the 
 
 ```sh
 sudo cat /sys/kernel/debug/tracing/trace_pipe 
 ```
+
+command
 
 ## License
 
