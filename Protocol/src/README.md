@@ -56,6 +56,15 @@ make lambda_server
 
 to avoid both compilation of server and client each time
 
+It is also worth noting that in order to make this protocol available to the switch once we deploy in in the full virtual environement it is necessary to execute 
+
+
+```sh
+make push
+```
+
+so that the user space program located in /XDP-Code can use latest update of the protocol.
+
 ## License
 
 LGPL-2.1 License 
