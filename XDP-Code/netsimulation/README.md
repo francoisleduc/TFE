@@ -1,7 +1,7 @@
 ## Usage
 
 First make sure you have execute the ``` make ``` command in either /flow-stats or /port-scan-stats folder depending on what XDP program you want to test.
-Then ``` make copynet ``` to copy the executable into the ``` /netsimulation ``` folder to make them available to the simulation environment.
+Then ``` make flow ``` or ``` make port ``` to copy the executable into the ``` /netsimulation ``` folder to make them available to the simulation environment.
 
 After that all the other commands will be run from the current ``` /netsimulation ``` folder.
 
