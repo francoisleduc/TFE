@@ -15,7 +15,7 @@ Increments values in BPF maps such as the number of bytes, the number of syn+ack
 #### Usage
 
 First you have to run ``` make ``` 
-Then it is advised to run ``` make copynet ``` to copy the executable and object files into the ``` /netsimulation ``` folder to test it on a small network topology.
+Then it is advised to run ``` make flow ``` to copy the executable and object files into the ``` /netsimulation ``` folder to test it on a small network topology.
 
 ```sh
 sudo ./xdp_load_and_stats_flow -n deviceid -s sourceipaddr -l lambdaip -p lambdaportnb --dev interface-name
